@@ -9,7 +9,7 @@
 ;;;
 ;;;  Global variables and constants
 ;;;
-globals [GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE ]
+globals [GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE HUMAN-RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER]
 
 ;;;
 ;;;  Set global variables' values
@@ -22,6 +22,8 @@ to set-globals
   set SMALL 4
   set MEDIUM 5
   set LARGE 6
+  set HUMAN-RESPAWN-TIMER 50000
+  set ZOMBIE-RESPAWN-TIMER 50000
 end
 
 ;;;
@@ -66,6 +68,8 @@ to setup-turtles
   let i 0
   create-humans human-count
   set-default-shape humans "person"
+  set-default-shape zombies "person"
+  set-default-shape crates "box"
 
   while [ i < human-count ]
   [
@@ -77,7 +81,6 @@ to setup-turtles
   ]
 
 
-  set-default-shape crates "box"
   create-crates 4
 
   ;; set crate 1
@@ -190,9 +193,12 @@ end
 ;;;  Count the number of humans
 ;;;
 to-report head-count
-
+  report count humans
 end
 
+to-report zombie-count
+  report count humans
+end
 ;;;
 ;;;  Return number of humans in the bunket
 ;;;
@@ -213,6 +219,10 @@ to go
   ask zombies [
       zombie-loop
   ]
+
+  spawn-human
+  spawn-zombie
+
   ;; Check if the goal was achieved, is everyone dead yet?
   if head-count = 0
     [ stop ]
@@ -243,6 +253,22 @@ to human-loop
 end
 
 ;;;
+;;;  Creates a new human
+;;;
+to spawn-human
+  if HUMAN-RESPAWN-TIMER <= 0 [
+    create-humans 1 [
+      ;; set human
+      set color blue
+      set xcor (-2 + random 5)
+      set ycor (-2 + random 5)
+      set HUMAN-RESPAWN-TIMER random 50000
+    ]
+  ]
+  set HUMAN-RESPAWN-TIMER HUMAN-RESPAWN-TIMER - 1
+end
+
+;;;
 ;;;  =================================================================
 ;;;
 ;;;      THE ZOMBIE
@@ -252,6 +278,23 @@ to init-zombie
 end
 
 to zombie-loop
+end
+
+;;;
+;;;  Creates a new human
+;;;
+to spawn-zombie
+  let coord-list [-13 13]
+  if ZOMBIE-RESPAWN-TIMER <= 0 [
+    create-zombies 1 [
+      ;; set human
+      set color black
+      set xcor one-of coord-list
+      set ycor one-of coord-list
+      set ZOMBIE-RESPAWN-TIMER random 50000
+    ]
+  ]
+  set ZOMBIE-RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER - 1
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -338,7 +381,7 @@ MONITOR
 124
 271
 Total humans
-delivered-boxes
+head-count
 0
 1
 11
@@ -349,7 +392,7 @@ MONITOR
 216
 271
 Total zombies
-robots-initial-position
+zombie-count
 0
 1
 11
