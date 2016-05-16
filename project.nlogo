@@ -71,7 +71,7 @@ to setup-turtles
   let i 0
   create-humans human-count
   set-default-shape humans "person"
-  set-default-shape zombies "person"
+  set-default-shape zombies "arrow"
   set-default-shape crates "box"
 
   while [ i < human-count ]
@@ -80,6 +80,7 @@ to setup-turtles
     ask turtle i [set color blue]
     ask turtle i [set xcor (-2 + random 5) ]
     ask turtle i [set ycor (-2 + random 5) ]
+    ask turtle i [set heading 0 ]
     set i i + 1
   ]
 end
@@ -248,6 +249,7 @@ to spawn-human
       set color blue
       set xcor (-2 + random 5)
       set ycor (-2 + random 5)
+      set heading 0
       set HUMAN-RESPAWN-TIMER random RESPAWN-TIMER
       set backpack EMPTY_BACKPACK
     ]
@@ -264,6 +266,7 @@ to spawn-zombie
     create-zombies 1 [
       ;; set the zombie
       set color black
+      set heading 0
       set xcor one-of coord-list
       set ycor one-of coord-list
       set ZOMBIE-RESPAWN-TIMER random RESPAWN-TIMER
@@ -322,6 +325,7 @@ to zombie-loop
   ifelse ( human-nearby? )
   [
     print "GET HIM!!"
+    face-closest-human
     chase-human
   ]
   [ move-randomly ]
@@ -345,6 +349,21 @@ end
 ;;;   Actuators
 ;;; ------------------------
 ;;;
+
+to face-closest-human
+  let nearest-human min-one-of humans in-radius 5 [ distance myself ]
+  let hx [xcor] of nearest-human
+  let hy [ycor] of nearest-human
+  if (hy > ycor)
+  [ set heading 0 ]
+  if (hy < ycor)
+  [ set heading 180 ]
+  ifelse (hx > xcor)
+  [ set heading 90 ]
+  [ set heading 270 ]
+
+ ;;TODO
+end
 
 ;;;
 ;;;  Move the zombie 1 step forward. Zombies cant walk on Bunker
@@ -400,7 +419,11 @@ end
 ;;;  Check if there are humans around
 ;;;
 to-report human-nearby?
-    report any? humans-on (patch-ahead 5)
+  let nearest-neighbor nobody
+  set nearest-neighbor min-one-of humans in-radius 5 [ distance myself ]
+  ifelse (nearest-neighbor = nobody)
+  [ report false ]
+  [report true]
 end
 
 
