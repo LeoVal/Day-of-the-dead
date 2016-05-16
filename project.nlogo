@@ -9,7 +9,7 @@
 ;;;
 ;;;  Global variables and constants
 ;;;
-globals [GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE HUMAN-RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER]
+globals [GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE HUMAN-RESPAWN-TIMER RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER CRATE-RESPAWN-TIMER]
 
 ;;;
 ;;;  Set global variables' values
@@ -22,8 +22,10 @@ to set-globals
   set SMALL 4
   set MEDIUM 5
   set LARGE 6
-  set HUMAN-RESPAWN-TIMER 50000
-  set ZOMBIE-RESPAWN-TIMER 50000
+  set RESPAWN-TIMER 15000
+  set HUMAN-RESPAWN-TIMER RESPAWN-TIMER
+  set ZOMBIE-RESPAWN-TIMER RESPAWN-TIMER
+  set CRATE-RESPAWN-TIMER RESPAWN-TIMER
 end
 
 ;;;
@@ -79,38 +81,7 @@ to setup-turtles
     ask turtle i [set ycor (-2 + random 5) ]
     set i i + 1
   ]
-
-
-  create-crates 4
-
-  ;; set crate 1
-  ask turtle human-count [set xcor 10]
-  ask turtle human-count [set ycor -10]
-  ask turtle human-count [set heading 0]
-  ask turtle human-count [set size 0.7]
-  ask turtle human-count [set crate-size MEDIUM]
-
-  ;; set crate 2
-  ask turtle (human-count + 1) [set xcor -10]
-  ask turtle (human-count + 1) [set ycor 10]
-  ask turtle (human-count + 1) [set heading 0]
-  ask turtle (human-count + 1) [set size 0.7]
-  ask turtle (human-count + 1) [set crate-size MEDIUM]
-
-  ;; set crate 3
-  ask turtle (human-count + 2) [set xcor -10]
-  ask turtle (human-count + 2) [set ycor -10]
-  ask turtle (human-count + 2) [set heading 0]
-  ask turtle (human-count + 2) [set size 0.7]
-  ask turtle (human-count + 2) [set crate-size MEDIUM]
-
-  ;; set crate 3
-  ask turtle (human-count + 3) [set xcor 10]
-  ask turtle (human-count + 3) [set ycor 10]
-  ask turtle (human-count + 3) [set heading 0]
-  ask turtle (human-count + 3) [set size 0.7]
-  ask turtle (human-count + 3) [set crate-size MEDIUM]
-  end
+end
 
 ;;;
 ;;;  Setup the environment. Populate the room.
@@ -222,10 +193,80 @@ to go
 
   spawn-human
   spawn-zombie
+  spawn-crate
 
   ;; Check if the goal was achieved, is everyone dead yet?
   if head-count = 0
     [ stop ]
+end
+
+;;;
+;;;  =================================================================
+;;;
+;;;      SPAWNERS DEFINITION
+;;;
+;;;  =================================================================
+
+;;;
+;;;  Creates a new crate
+;;;  Green boxes are small, blue are medium, red are large
+;;;
+to spawn-crate
+  let coord-list [-10 10]
+  if CRATE-RESPAWN-TIMER <= 0 [
+    create-crates 1 [
+      ;; set crates variables
+      let i random 100
+      if i > 90 and i < 100
+      [ set crate-size LARGE
+        set color red]
+      if i > 70 and i < 90
+      [ set crate-size MEDIUM
+        set color blue ]
+      if i > 0 and i < 60
+      [ set crate-size SMALL
+        set color green ]
+      set size 0.7
+      set heading 0
+      set xcor one-of coord-list + random 5 - 2
+      set ycor one-of coord-list + random 5 - 2
+      set CRATE-RESPAWN-TIMER random RESPAWN-TIMER
+    ]
+  ]
+  set CRATE-RESPAWN-TIMER CRATE-RESPAWN-TIMER - 1
+end
+
+;;;
+;;;  Creates a new human
+;;;
+to spawn-human
+  if HUMAN-RESPAWN-TIMER <= 0 [
+    create-humans 1 [
+      ;; set human
+      set color blue
+      set xcor (-2 + random 5)
+      set ycor (-2 + random 5)
+      set HUMAN-RESPAWN-TIMER random RESPAWN-TIMER
+    ]
+  ]
+  set HUMAN-RESPAWN-TIMER HUMAN-RESPAWN-TIMER - 1
+end
+
+;;;
+;;;  Creates a new zombie
+;;;
+to spawn-zombie
+  let coord-list [-13 13]
+  if ZOMBIE-RESPAWN-TIMER <= 0 [
+    create-zombies 1 [
+      ;; set the zombie
+      set color black
+      set xcor one-of coord-list
+      set ycor one-of coord-list
+      set ZOMBIE-RESPAWN-TIMER random RESPAWN-TIMER
+    ]
+  ]
+  set ZOMBIE-RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER - 1
 end
 
 ;;;
@@ -253,22 +294,6 @@ to human-loop
 end
 
 ;;;
-;;;  Creates a new human
-;;;
-to spawn-human
-  if HUMAN-RESPAWN-TIMER <= 0 [
-    create-humans 1 [
-      ;; set human
-      set color blue
-      set xcor (-2 + random 5)
-      set ycor (-2 + random 5)
-      set HUMAN-RESPAWN-TIMER random 50000
-    ]
-  ]
-  set HUMAN-RESPAWN-TIMER HUMAN-RESPAWN-TIMER - 1
-end
-
-;;;
 ;;;  =================================================================
 ;;;
 ;;;      THE ZOMBIE
@@ -278,23 +303,6 @@ to init-zombie
 end
 
 to zombie-loop
-end
-
-;;;
-;;;  Creates a new human
-;;;
-to spawn-zombie
-  let coord-list [-13 13]
-  if ZOMBIE-RESPAWN-TIMER <= 0 [
-    create-zombies 1 [
-      ;; set human
-      set color black
-      set xcor one-of coord-list
-      set ycor one-of coord-list
-      set ZOMBIE-RESPAWN-TIMER random 50000
-    ]
-  ]
-  set ZOMBIE-RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER - 1
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
