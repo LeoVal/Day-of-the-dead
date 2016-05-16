@@ -9,7 +9,7 @@
 ;;;
 ;;;  Global variables and constants
 ;;;
-globals [GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE HUMAN-RESPAWN-TIMER RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER CRATE-RESPAWN-TIMER]
+globals [GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE HUMAN-RESPAWN-TIMER RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER CRATE-RESPAWN-TIMER EMPTY_BACKPACK]
 
 ;;;
 ;;;  Set global variables' values
@@ -22,7 +22,7 @@ to set-globals
   set SMALL 4
   set MEDIUM 5
   set LARGE 6
-  set RESPAWN-TIMER 15000
+  set RESPAWN-TIMER 15
   set HUMAN-RESPAWN-TIMER RESPAWN-TIMER
   set ZOMBIE-RESPAWN-TIMER RESPAWN-TIMER
   set CRATE-RESPAWN-TIMER RESPAWN-TIMER
@@ -41,9 +41,10 @@ breed [ crates crate]
 patches-own [kind floor-type]
 
 ;;;
-;;;  The cratess have a size property
+;;;  The crates have a size property and humans have a backpack
 ;;;
 crates-own [crate-size]
+humans-own [backpack]
 
 ;;;
 ;;;  Reset the simulation
@@ -170,6 +171,7 @@ end
 to-report zombie-count
   report count humans
 end
+
 ;;;
 ;;;  Return number of humans in the bunket
 ;;;
@@ -186,7 +188,7 @@ to go
   ask humans [
       human-loop
   ]
-    ;; the humans action
+    ;; the zombies action
   ask zombies [
       zombie-loop
   ]
@@ -247,6 +249,7 @@ to spawn-human
       set xcor (-2 + random 5)
       set ycor (-2 + random 5)
       set HUMAN-RESPAWN-TIMER random RESPAWN-TIMER
+      set backpack EMPTY_BACKPACK
     ]
   ]
   set HUMAN-RESPAWN-TIMER HUMAN-RESPAWN-TIMER - 1
@@ -267,6 +270,17 @@ to spawn-zombie
     ]
   ]
   set ZOMBIE-RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER - 1
+end
+
+
+;;;
+;;;  Move the crate to the humans' current position
+;;;
+to move-crate
+  let r-xcor xcor
+  let r-ycor ycor
+  ask backpack [set xcor r-xcor]
+  ask backpack [set ycor r-ycor]
 end
 
 ;;;
@@ -298,11 +312,139 @@ end
 ;;;
 ;;;      THE ZOMBIE
 ;;;
+;;;      Reactive agent who chases humans
+;;;
 ;;;  =================================================================
 to init-zombie
 end
 
 to zombie-loop
+  ifelse ( human-nearby? )
+  [
+    print "GET HIM!!"
+    chase-human
+  ]
+  [ move-randomly ]
+end
+
+to chase-human
+  zombie-move-ahead
+end
+
+to move-randomly
+  rotate-random
+  zombie-move-ahead
+end
+
+
+
+;;; ============================================================================================
+
+;;;
+;;; ------------------------
+;;;   Actuators
+;;; ------------------------
+;;;
+
+;;;
+;;;  Move the zombie 1 step forward. Zombies cant walk on Bunker
+;;;
+to zombie-move-ahead
+  let ahead (patch-ahead 1)
+  ;; check if the cell is free
+  if ([kind] of ahead != BUNKER_FLOOR) and ([kind] of ahead != WALL)
+  [ fd 1 ]
+end
+
+;;;
+;;;  Allow the human to grab the crate
+;;;
+to grab-crate
+  let crate crate-ahead
+  ; Check if there is a crate on the cell ahead
+  if crate != nobody
+    [ set backpack crate
+      move-crate ]
+end
+
+;;;
+;;;  Rotate turtle to a random direction
+;;;
+to rotate-random
+  ifelse (random 2 = 0)
+  [ rotate-left ]
+  [ rotate-right ]
+end
+
+;;;
+;;;  Rotate turtle to left
+;;;
+to rotate-left
+  lt 90
+end
+
+;;;
+;;;  Rotate turtle to right
+;;;
+to rotate-right
+  rt 90
+end
+
+;;;
+;;; ------------------------
+;;;   Sensors
+;;; ------------------------
+;;;
+
+;;;
+;;;  Check if there are humans around
+;;;
+to-report human-nearby?
+    report any? humans-on (patch-ahead 5)
+end
+
+
+;;;
+;;;  Check if the human is carrying a food crate
+;;;
+to-report carrying-crate?
+  report not (backpack = EMPTY_BACKPACK)
+end
+
+;;;
+;;;  Check if the cell ahead contains a crate
+;;;
+to-report cell-has-crate?
+  report any? crates-on (patch-ahead 1)
+end
+
+;;;
+;;;  Returns the crate in front of the human
+;;;
+to-report crate-ahead
+  report one-of crates-on patch-ahead 1
+end
+
+;;;
+;;;  Check if the cell ahead is floor (which means not a wall, not a bunker nor market)
+;;;
+to-report free-cell?
+  let frente (patch-ahead 1)
+  report ([kind] of frente = GROUND)
+end
+
+;;;
+;;;  Check if the cell ahead is a bunker
+;;;
+to-report bunker-cell?
+  report ([kind] of (patch-ahead 1) = BUNKER_FLOOR)
+end
+
+;;;
+;;;  Check if the cell ahead is a market floor
+;;;
+to-report market-cell?
+  report ([kind] of (patch-ahead 1) = MARKET_FLOOR)
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
