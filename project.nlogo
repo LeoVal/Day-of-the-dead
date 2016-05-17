@@ -348,7 +348,6 @@ end
 ;;;   Actuators
 ;;; ------------------------
 ;;;
-
 to face-closest-human
   let nearest-human min-one-of humans in-radius 5 [ distance myself ]
   ; TODO turn around
@@ -357,7 +356,7 @@ end
 
 to kill-human
     let kill-nearest-human min-one-of humans in-radius 1 [ distance myself ]
-    if (kill-nearest-human != nobody)
+    if (kill-nearest-human != nobody and [ kind ] OF [ patch-here ] OF kill-nearest-human != BUNKER_FLOOR)
     [ ask kill-nearest-human [ die ] ]
 end
 
