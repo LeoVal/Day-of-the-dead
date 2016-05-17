@@ -71,7 +71,7 @@ to setup-turtles
   let i 0
   create-humans human-count
   set-default-shape humans "person"
-  set-default-shape zombies "arrow"
+  set-default-shape zombies "person"
   set-default-shape crates "box"
 
   while [ i < human-count ]
@@ -170,7 +170,7 @@ to-report head-count
 end
 
 to-report zombie-count
-  report count humans
+  report count zombies
 end
 
 ;;;
@@ -324,7 +324,6 @@ end
 to zombie-loop
   ifelse ( human-nearby? )
   [
-    print "GET HIM!!"
     face-closest-human
     chase-human
   ]
@@ -352,17 +351,14 @@ end
 
 to face-closest-human
   let nearest-human min-one-of humans in-radius 5 [ distance myself ]
-  let hx [xcor] of nearest-human
-  let hy [ycor] of nearest-human
-  if (hy > ycor)
-  [ set heading 0 ]
-  if (hy < ycor)
-  [ set heading 180 ]
-  ifelse (hx > xcor)
-  [ set heading 90 ]
-  [ set heading 270 ]
+  ; TODO turn around
+  kill-human
+end
 
- ;;TODO
+to kill-human
+    let kill-nearest-human min-one-of humans in-radius 1 [ distance myself ]
+    if (kill-nearest-human != nobody)
+    [ ask kill-nearest-human [ die ] ]
 end
 
 ;;;
