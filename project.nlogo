@@ -308,6 +308,19 @@ to init-human
 end
 
 to human-loop
+  human-move-randomly
+end
+
+to human-move-randomly
+  rotate-random
+  human-move-ahead
+end
+
+to human-move-ahead
+  let ahead (patch-ahead 1)
+  ;; check if the cell is free
+  if ([kind] of ahead != WALL)
+  [ fd 1 ]
 end
 
 ;;;
@@ -325,6 +338,7 @@ to zombie-loop
   ifelse ( human-nearby? )
   [
     face-closest-human
+    ;kill-human
     chase-human
   ]
   [ move-randomly ]
@@ -350,8 +364,16 @@ end
 ;;;
 to face-closest-human
   let nearest-human min-one-of humans in-radius 5 [ distance myself ]
-  ; TODO turn around
-  kill-human
+  let hx [xcor] OF nearest-human
+  let hy [ycor] OF nearest-human
+
+  let x hx - [xcor] OF self
+  let y hy - [ycor] OF self
+
+  if (nearest-human != nobody and x != 0 and y != 0)
+  [
+  set heading atan x y
+  ]
 end
 
 to kill-human
@@ -415,7 +437,7 @@ end
 ;;;
 to-report human-nearby?
   let nearest-neighbor nobody
-  set nearest-neighbor min-one-of humans in-radius 5 [ distance myself ]
+  set nearest-neighbor min-one-of humans in-radius 3 [ distance myself ]
   ifelse (nearest-neighbor = nobody)
   [ report false ]
   [report true]
