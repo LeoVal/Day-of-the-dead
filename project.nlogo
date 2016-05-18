@@ -51,6 +51,7 @@ patches-own [kind floor-type]
 ;;;
 crates-own [crate-size]
 humans-own [
+field-of-depth
 backpack
 world-map
 current-position
@@ -316,13 +317,13 @@ end
 ;;;
 ;;;  =================================================================
 to init-human
+  set field-of-depth 5
   set color blue
   set xcor (-2 + random 5)
   set ycor (-2 + random 5)
   set heading 0
   set backpack EMPTY_BACKPACK
   set world-map build-new-map
-print  read-map-position [0 0]
 end
 
 to human-loop
@@ -330,6 +331,7 @@ to human-loop
   [ human-BDI ]
   if (Human-Strategy = "Learning")
   [ human-learning ]
+
 end
 
 
@@ -339,6 +341,18 @@ end
 
 to human-learning
   ;TODO human learning algorithm here
+end
+
+to update-status
+  let vision patches in-cone field-of-depth 90
+  let x ""
+  let y ""
+  let patch-content ""
+  let position-list ""
+  foreach sort vision
+  [
+    ask self [ write-map list [pxcor] of ?1 [pycor] of ?1 [kind] of ?1 ]
+  ]
 end
 
 ;;; ---- Map ----
