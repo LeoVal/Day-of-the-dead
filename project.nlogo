@@ -9,20 +9,24 @@
 ;;;
 ;;;  Global variables and constants
 ;;;
-globals [GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE HUMAN-RESPAWN-TIMER RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER CRATE-RESPAWN-TIMER EMPTY_BACKPACK FOOD ]
+globals [UNKNOWN GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE HUMAN-RESPAWN-TIMER RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER CRATE-RESPAWN-TIMER EMPTY_BACKPACK FOOD ]
 
 ;;;
 ;;;  Set global variables' values
 ;;;
 to set-globals
-  set GROUND 0
-  set WALL 1
-  set BUNKER_FLOOR 2
-  set MARKET_FLOOR 3
-  set SMALL 4
-  set MEDIUM 5
-  set LARGE 6
-  set FOOD 150
+  ;;; map variables
+  set UNKNOWN 0
+  set GROUND 1
+  set WALL 2
+  set BUNKER_FLOOR 3
+  set MARKET_FLOOR 4
+  set SMALL 5
+  set MEDIUM 6
+  set LARGE 7
+
+  ;;; global variables
+  set FOOD 200
   set RESPAWN-TIMER 15
   set Human-Strategy "BDI"
   set HUMAN-RESPAWN-TIMER RESPAWN-TIMER
@@ -46,7 +50,14 @@ patches-own [kind floor-type]
 ;;;  The crates have a size property and humans have a backpack
 ;;;
 crates-own [crate-size]
-humans-own [backpack]
+humans-own [
+backpack
+world-map
+current-position
+desire
+intention
+plan
+]
 
 ;;;
 ;;;  Reset the simulation
@@ -310,22 +321,57 @@ to init-human
   set ycor (-2 + random 5)
   set heading 0
   set backpack EMPTY_BACKPACK
+  set world-map build-new-map
+print  read-map-position [0 0]
 end
 
 to human-loop
   if (Human-Strategy = "BDI")
   [ human-BDI ]
-  if (Human-Strategy = "learning")
+  if (Human-Strategy = "Learning")
   [ human-learning ]
 end
 
 
 to human-BDI
-  print "TODO human BDI strategy here"
+  ;TODO human BDI strategy here
 end
 
 to human-learning
-  print "TODO human learning algorithm here"
+  ;TODO human learning algorithm here
+end
+
+;;; ---- Map ----
+
+;;;  Build a new map with UNKNOWN in all positions
+to-report build-new-map
+  let m 0
+
+  set m ""
+
+  repeat 31 * 31
+    [ set m word m UNKNOWN ]
+
+  report m
+end
+
+to write-map [pos mtype]
+  let x 0
+  let y 0
+
+  set x item 0 pos
+  set y item 1 pos
+
+  set world-map replace-item ((x + 15) + (y + 15) * 31) world-map (word "" mtype)
+end
+
+to-report read-map-position [pos]
+  let x 0
+  let y 0
+
+  set x item 0 pos
+  set y item 1 pos
+  report item ((x + 15) + (y + 15) * 31) world-map
 end
 
 ;;;
@@ -640,7 +686,7 @@ CHOOSER
 115
 Human-Strategy
 Human-Strategy
-"BDI" "LEARNING"
+"BDI" "Learning"
 0
 
 SLIDER
@@ -652,7 +698,7 @@ FOOD_CONSUME_RATE
 FOOD_CONSUME_RATE
 1
 10
-5
+2
 1
 1
 NIL
