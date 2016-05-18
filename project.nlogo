@@ -9,7 +9,7 @@
 ;;;
 ;;;  Global variables and constants
 ;;;
-globals [GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE HUMAN-RESPAWN-TIMER RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER CRATE-RESPAWN-TIMER EMPTY_BACKPACK ]
+globals [GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE HUMAN-RESPAWN-TIMER RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER CRATE-RESPAWN-TIMER EMPTY_BACKPACK FOOD ]
 
 ;;;
 ;;;  Set global variables' values
@@ -22,6 +22,7 @@ to set-globals
   set SMALL 4
   set MEDIUM 5
   set LARGE 6
+  set FOOD 150
   set RESPAWN-TIMER 15
   set Human-Strategy "BDI"
   set HUMAN-RESPAWN-TIMER RESPAWN-TIMER
@@ -169,6 +170,10 @@ to-report zombie-count
   report count zombies
 end
 
+to-report food-levels
+  report FOOD
+end
+
 ;;;
 ;;;  Return number of humans in the bunket
 ;;;
@@ -189,6 +194,11 @@ to go
   ask zombies [
       zombie-loop
   ]
+
+  if (FOOD <= 0)
+  [ starve-humans ]
+  if (FOOD >= 0)
+  [ set FOOD FOOD - FOOD_CONSUME_RATE ]
 
   spawn-human
   spawn-zombie
@@ -364,6 +374,12 @@ to grab-crate
       move-crate ]
 end
 
+to kill-zombie
+  print "TODO kill zombie function here"
+end
+
+
+
 
 ;;;
 ;;;  =================================================================
@@ -453,6 +469,13 @@ end
 ;;; ============================================================================================
 
 ;;; General functions. Everyone can use these.
+
+to starve-humans
+let starve-random-human one-of humans
+  if (starve-random-human != nobody and (ticks mod 5 = 0))
+  [ ask starve-random-human [ die] ]
+end
+
 ;;;
 ;;; ------------------------
 ;;;  Actuators
@@ -589,9 +612,9 @@ NIL
 1
 
 MONITOR
-38
+50
 226
-124
+136
 271
 Total humans
 head-count
@@ -600,10 +623,10 @@ head-count
 11
 
 MONITOR
-132
-226
-216
-271
+147
+225
+231
+270
 Total zombies
 zombie-count
 0
@@ -619,6 +642,39 @@ Human-Strategy
 Human-Strategy
 "BDI" "LEARNING"
 0
+
+SLIDER
+46
+435
+230
+468
+FOOD_CONSUME_RATE
+FOOD_CONSUME_RATE
+1
+10
+5
+1
+1
+NIL
+HORIZONTAL
+
+PLOT
+38
+277
+238
+427
+plot 1
+Ticks
+Food
+0.0
+10.0
+0.0
+250.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -2674135 true "" "plot food-levels"
 
 @#$#@#$#@
 ## ABSTRACT TYPES
