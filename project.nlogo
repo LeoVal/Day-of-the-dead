@@ -9,7 +9,7 @@
 ;;;
 ;;;  Global variables and constants
 ;;;
-globals [GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE HUMAN-RESPAWN-TIMER RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER CRATE-RESPAWN-TIMER EMPTY_BACKPACK]
+globals [GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE HUMAN-RESPAWN-TIMER RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER CRATE-RESPAWN-TIMER EMPTY_BACKPACK ]
 
 ;;;
 ;;;  Set global variables' values
@@ -23,6 +23,7 @@ to set-globals
   set MEDIUM 5
   set LARGE 6
   set RESPAWN-TIMER 15
+  set Human-Strategy "BDI"
   set HUMAN-RESPAWN-TIMER RESPAWN-TIMER
   set ZOMBIE-RESPAWN-TIMER RESPAWN-TIMER
   set CRATE-RESPAWN-TIMER RESPAWN-TIMER
@@ -77,10 +78,7 @@ to setup-turtles
   while [ i < human-count ]
   [
     ;; set human
-    ask turtle i [set color blue]
-    ask turtle i [set xcor (-2 + random 5) ]
-    ask turtle i [set ycor (-2 + random 5) ]
-    ask turtle i [set heading 0 ]
+    ask turtle i [ init-human ]
     set i i + 1
   ]
 end
@@ -120,8 +118,6 @@ to setup-patches
   ask patches [
     set kind GROUND
     set pcolor green + 6 ]
-
-  ask patch 0 0 [set pcolor white]
 
   ;; Build the wall
   foreach [-15 -14 -13 -12 -11 -10 -9 -8 -7 -6 -5 -4 -3 -2 -1 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15]
@@ -246,12 +242,8 @@ to spawn-human
   if HUMAN-RESPAWN-TIMER <= 0 [
     create-humans 1 [
       ;; set human
-      set color blue
-      set xcor (-2 + random 5)
-      set ycor (-2 + random 5)
-      set heading 0
+      init-human
       set HUMAN-RESPAWN-TIMER random RESPAWN-TIMER
-      set backpack EMPTY_BACKPACK
     ]
   ]
   set HUMAN-RESPAWN-TIMER HUMAN-RESPAWN-TIMER - 1
@@ -261,14 +253,10 @@ end
 ;;;  Creates a new zombie
 ;;;
 to spawn-zombie
-  let coord-list [-13 13]
   if ZOMBIE-RESPAWN-TIMER <= 0 [
     create-zombies 1 [
       ;; set the zombie
-      set color black
-      set heading 0
-      set xcor one-of coord-list
-      set ycor one-of coord-list
+      init-zombie
       set ZOMBIE-RESPAWN-TIMER random RESPAWN-TIMER
     ]
   ]
@@ -303,25 +291,79 @@ end
 ;;;
 ;;;      THE HUMAN
 ;;;
+;;;      Inteligent agent capable of surviving
+;;;
 ;;;  =================================================================
 to init-human
+  set color blue
+  set xcor (-2 + random 5)
+  set ycor (-2 + random 5)
+  set heading 0
+  set backpack EMPTY_BACKPACK
 end
 
 to human-loop
-  human-move-randomly
+  if (Human-Strategy = "BDI")
+  [ human-BDI ]
+  if (Human-Strategy = "learning")
+  [ human-learning ]
 end
 
+
+to human-BDI
+  print "TODO human BDI strategy here"
+end
+
+to human-learning
+  print "TODO human learning algorithm here"
+end
+
+;;;
+;;;   Sensors
+;;;
+
+;;;  Check if the human is carrying a food crate
+to-report carrying-crate?
+  report not (backpack = EMPTY_BACKPACK)
+end
+
+;;;  Check if the cell ahead contains a crate
+to-report cell-has-crate?
+  report any? crates-on (patch-ahead 1)
+end
+
+;;;  Returns the crate in front of the human
+to-report crate-ahead
+  report one-of crates-on patch-ahead 1
+end
+
+;;;
+;;;   Actuators
+;;;
+
+; faces a random direction and moves ahead
 to human-move-randomly
   rotate-random
   human-move-ahead
 end
 
+; moves 1 patch ahead. cant walk into walls
 to human-move-ahead
   let ahead (patch-ahead 1)
   ;; check if the cell is free
   if ([kind] of ahead != WALL)
   [ fd 1 ]
 end
+
+;;;  Allow the human to grab the crate
+to grab-crate
+  let crate crate-ahead
+  ; Check if there is a crate on the cell ahead
+  if crate != nobody
+    [ set backpack crate
+      move-crate ]
+end
+
 
 ;;;
 ;;;  =================================================================
@@ -332,38 +374,63 @@ end
 ;;;
 ;;;  =================================================================
 to init-zombie
+  let coord-list [-13 13]
+  set color black
+  set heading 0
+  set xcor one-of coord-list
+  set ycor one-of coord-list
 end
 
 to zombie-loop
   ifelse ( human-nearby? )
   [
     face-closest-human
-    ;kill-human
+    kill-human
     chase-human
   ]
   [ move-randomly ]
 end
 
+;;;
+;;;   Sensors
+;;;
+
+;;;  Check if there are humans around
+to-report human-nearby?
+  let nearest-neighbor nobody
+  set nearest-neighbor min-one-of humans in-radius 3 [ distance myself ]
+  ifelse (nearest-neighbor = nobody)
+  [ report false ]
+  [report true]
+end
+
+;;;
+;;;   Actuators
+;;;
+
+; goes in the nearest human's direction
 to chase-human
+  face-closest-human
   zombie-move-ahead
 end
 
+; faces a random direction and goes ahead
 to move-randomly
   rotate-random
   zombie-move-ahead
 end
 
+;;;  Move the zombie 1 step forward. Zombies cant walk on Bunker
+to zombie-move-ahead
+  let ahead (patch-ahead 1)
+  ;; check if the cell is free
+  if ([kind] of ahead != BUNKER_FLOOR) and ([kind] of ahead != WALL)
+  [ fd 1 ]
+end
 
-
-;;; ============================================================================================
-
-;;;
-;;; ------------------------
-;;;   Actuators
-;;; ------------------------
-;;;
+; turns the zombie to the nearest human
 to face-closest-human
-  let nearest-human min-one-of humans in-radius 5 [ distance myself ]
+  let nearest-human min-one-of humans in-radius 3 [ distance myself ]
   let hx [xcor] OF nearest-human
   let hy [ycor] OF nearest-human
 
@@ -376,32 +443,21 @@ to face-closest-human
   ]
 end
 
+; kills the nearest human who isnt in the bunker. 1 block minimum distance
 to kill-human
     let kill-nearest-human min-one-of humans in-radius 1 [ distance myself ]
     if (kill-nearest-human != nobody and [ kind ] OF [ patch-here ] OF kill-nearest-human != BUNKER_FLOOR)
     [ ask kill-nearest-human [ die ] ]
 end
 
-;;;
-;;;  Move the zombie 1 step forward. Zombies cant walk on Bunker
-;;;
-to zombie-move-ahead
-  let ahead (patch-ahead 1)
-  ;; check if the cell is free
-  if ([kind] of ahead != BUNKER_FLOOR) and ([kind] of ahead != WALL)
-  [ fd 1 ]
-end
+;;; ============================================================================================
 
+;;; General functions. Everyone can use these.
 ;;;
-;;;  Allow the human to grab the crate
+;;; ------------------------
+;;;  Actuators
+;;; ------------------------
 ;;;
-to grab-crate
-  let crate crate-ahead
-  ; Check if there is a crate on the cell ahead
-  if crate != nobody
-    [ set backpack crate
-      move-crate ]
-end
 
 ;;;
 ;;;  Rotate turtle to a random direction
@@ -433,39 +489,6 @@ end
 ;;;
 
 ;;;
-;;;  Check if there are humans around
-;;;
-to-report human-nearby?
-  let nearest-neighbor nobody
-  set nearest-neighbor min-one-of humans in-radius 3 [ distance myself ]
-  ifelse (nearest-neighbor = nobody)
-  [ report false ]
-  [report true]
-end
-
-
-;;;
-;;;  Check if the human is carrying a food crate
-;;;
-to-report carrying-crate?
-  report not (backpack = EMPTY_BACKPACK)
-end
-
-;;;
-;;;  Check if the cell ahead contains a crate
-;;;
-to-report cell-has-crate?
-  report any? crates-on (patch-ahead 1)
-end
-
-;;;
-;;;  Returns the crate in front of the human
-;;;
-to-report crate-ahead
-  report one-of crates-on patch-ahead 1
-end
-
-;;;
 ;;;  Check if the cell ahead is floor (which means not a wall, not a bunker nor market)
 ;;;
 to-report free-cell?
@@ -490,19 +513,19 @@ end
 GRAPHICS-WINDOW
 321
 10
-951
-661
+858
+568
 15
 15
-20.0
+17.0
 1
 10
 1
 1
 1
 0
-1
-1
+0
+0
 1
 -15
 15
@@ -586,6 +609,16 @@ zombie-count
 0
 1
 11
+
+CHOOSER
+29
+70
+168
+115
+Human-Strategy
+Human-Strategy
+"BDI" "LEARNING"
+0
 
 @#$#@#$#@
 ## ABSTRACT TYPES
