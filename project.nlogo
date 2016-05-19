@@ -82,6 +82,10 @@ humans-own [
   last-action
 ]
 
+zombies-own[
+  last-action
+]
+
 ;;;
 ;;;  Reset the simulation
 ;;;
@@ -418,7 +422,7 @@ to-report BDI-filter
     [
       if desire = "drop"
       [
-        set pos-or build-position 0 0 0
+        set pos-or [0 0]
         report build-intention desire item 0 pos-or item 1 pos-or
       ]
     ]
@@ -427,6 +431,7 @@ to-report BDI-filter
 end
 
 to-report build-plan-for-intention [iintention]
+  report []
 end
 
 to update-status [ vision ]
