@@ -1,3 +1,5 @@
+ __includes ["labs.nls"]
+
 ;;;
 ;;;  =================================================================
 ;;;
@@ -9,7 +11,23 @@
 ;;;
 ;;;  Global variables and constants
 ;;;
-globals [UNKNOWN GROUND WALL BUNKER_FLOOR MARKET_FLOOR SMALL MEDIUM LARGE HUMAN-RESPAWN-TIMER RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER CRATE-RESPAWN-TIMER EMPTY_BACKPACK FOOD ]
+globals [
+  UNKNOWN
+  GROUND
+  WALL
+  BUNKER_FLOOR
+  MARKET_FLOOR
+  SMALL
+  MEDIUM
+  LARGE
+  HUMAN-RESPAWN-TIMER
+  RESPAWN-TIMER
+  ZOMBIE-RESPAWN-TIMER
+  CRATE-RESPAWN-TIMER
+  EMPTY_BACKPACK
+  FOOD
+  MAP_WIDTH
+]
 
 ;;;
 ;;;  Set global variables' values
@@ -24,14 +42,15 @@ to set-globals
   set SMALL 5
   set MEDIUM 6
   set LARGE 7
+  set MAP_WIDTH 31
 
   ;;; global variables
   set FOOD 200
-  set RESPAWN-TIMER 15
+  set RESPAWN-TIMER 50
   set Human-Strategy "BDI"
-  set HUMAN-RESPAWN-TIMER RESPAWN-TIMER
+  set HUMAN-RESPAWN-TIMER RESPAWN-TIMER * 3
   set ZOMBIE-RESPAWN-TIMER RESPAWN-TIMER
-  set CRATE-RESPAWN-TIMER RESPAWN-TIMER
+  set CRATE-RESPAWN-TIMER RESPAWN-TIMER * 2
 end
 
 ;;;
@@ -51,13 +70,16 @@ patches-own [kind floor-type]
 ;;;
 crates-own [crate-size]
 humans-own [
-field-of-depth
-backpack
-world-map
-current-position
-desire
-intention
-plan
+  field-of-depth
+  backpack
+
+  world-map
+  current-position
+
+  desire
+  intention
+  plan
+  last-action
 ]
 
 ;;;
@@ -81,13 +103,14 @@ end
 ;;;  Setup all the agents. Create humans ands 4 crates
 ;;;
 to setup-turtles
-  let human-count 15
+  let human-count 10
   let i 0
-  create-humans human-count
+
   set-default-shape humans "person"
   set-default-shape zombies "person"
   set-default-shape crates "box"
 
+  create-humans human-count
   while [ i < human-count ]
   [
     ;; set human
@@ -198,13 +221,15 @@ end
 ;;;
 to go
   tick
-  ;; the humans action
-  ask humans [
-      human-loop
-  ]
+
     ;; the zombies action
   ask zombies [
       zombie-loop
+  ]
+
+  ;; the humans action
+  ask humans [
+      human-loop
   ]
 
   if (FOOD <= 0)
@@ -285,15 +310,18 @@ to spawn-zombie
   set ZOMBIE-RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER - 1
 end
 
-
 ;;;
-;;;  Move the crate to the humans' current position
+;;;  Turn a human into a zombie
 ;;;
-to move-crate
-  let r-xcor xcor
-  let r-ycor ycor
-  ask backpack [set xcor r-xcor]
-  ask backpack [set ycor r-ycor]
+to human-to-zombie [ human ]
+  let x [xcor] of human
+  let y [ycor] of human
+  ask human [die]
+  hatch-zombies 1[
+    init-zombie
+    set xcor x
+    set ycor y
+  ]
 end
 
 ;;;
@@ -321,12 +349,21 @@ to init-human
   set color blue
   set xcor (-2 + random 5)
   set ycor (-2 + random 5)
+  set current-position build-position xcor ycor
   set heading 0
   set backpack EMPTY_BACKPACK
   set world-map build-new-map
+  set plan build-empty-plan
+  set last-action ""
 end
 
 to human-loop
+
+  ; Gets input from world, updates map and tells everyone what he saw
+  let vision patches in-cone field-of-depth 90
+  update-status vision
+  send-message list "update" vision
+
   if (Human-Strategy = "BDI")
   [ human-BDI ]
   if (Human-Strategy = "Learning")
@@ -334,17 +371,65 @@ to human-loop
 
 end
 
-
-to human-BDI
-  ;TODO human BDI strategy here
-end
-
 to human-learning
   ;TODO human learning algorithm here
 end
 
-to update-status
-  let vision patches in-cone field-of-depth 90
+to human-BDI
+
+  ifelse not (empty-plan? plan or intention-succeeded? intention or impossible-intention? intention)
+  [
+    ;execute-plan-action
+  ]
+  [
+    ;; Check the robot's options
+    set desire prefered-action
+    set intention BDI-filter
+    set plan build-plan-for-intention intention
+
+    ; if no plan go towards bunker
+    ;TODO
+
+  ]
+end
+
+; generates the human's current desire
+to-report prefered-action
+  ifelse ( FOOD < 150 )
+  [ report "food" ]
+  [
+    report "explore"
+  ]
+end
+
+to-report BDI-filter
+  let pos-or 0
+
+  ifelse desire = "explore"
+  [
+    report build-intention desire [10 10] 90
+  ]
+  [
+    ifelse desire = "food"
+    [
+      set pos-or [-13 -13]
+      report build-intention desire item 0 pos-or item 1 pos-or
+    ]
+    [
+      if desire = "drop"
+      [
+        set pos-or build-position 0 0 0
+        report build-intention desire item 0 pos-or item 1 pos-or
+      ]
+    ]
+  ]
+  report build-empty-intention
+end
+
+to-report build-plan-for-intention [iintention]
+end
+
+to update-status [ vision ]
   let x ""
   let y ""
   let patch-content ""
@@ -355,7 +440,29 @@ to update-status
   ]
 end
 
-;;; ---- Map ----
+;;;
+;;; ----------------------------
+;;;    Comunication procedures
+;;; ----------------------------
+;;;
+
+;;;
+;;;  Send a message to all humans
+;;;
+to send-message [ msg ]
+  ask humans [ handle-message msg ]
+end
+
+;;;  Send a message to a specified human
+to send-message-to-human [id-human msg]
+  ask turtle id-human [handle-message msg]
+end
+;;;
+;;;  =================================================================
+;;;
+;;;      MAP
+;;;
+;;;  =================================================================
 
 ;;;  Build a new map with UNKNOWN in all positions
 to-report build-new-map
@@ -389,31 +496,13 @@ to-report read-map-position [pos]
 end
 
 ;;;
-;;;   Sensors
-;;;
-
-;;;  Check if the human is carrying a food crate
-to-report carrying-crate?
-  report not (backpack = EMPTY_BACKPACK)
-end
-
-;;;  Check if the cell ahead contains a crate
-to-report cell-has-crate?
-  report any? crates-on (patch-ahead 1)
-end
-
-;;;  Returns the crate in front of the human
-to-report crate-ahead
-  report one-of crates-on patch-ahead 1
-end
-
-;;;
 ;;;   Actuators
 ;;;
 
 ; faces a random direction and moves ahead
 to human-move-randomly
-  rotate-random
+
+  if (random 1 = 0) [ rotate-random ]
   human-move-ahead
 end
 
@@ -422,7 +511,9 @@ to human-move-ahead
   let ahead (patch-ahead 1)
   ;; check if the cell is free
   if ([kind] of ahead != WALL)
-  [ fd 1 ]
+  [ fd 1
+    set current-position position-ahead
+  ]
 end
 
 ;;;  Allow the human to grab the crate
@@ -431,6 +522,7 @@ to grab-crate
   ; Check if there is a crate on the cell ahead
   if crate != nobody
     [ set backpack crate
+      set last-action "grab"
       move-crate ]
 end
 
@@ -438,7 +530,15 @@ to kill-zombie
   print "TODO kill zombie function here"
 end
 
-
+;;;  Handle a new received message
+;;; Messages are a list of 2 items
+to handle-message [msg]
+  let action item 0 msg
+  if(action = "update")
+  [
+    update-status item 1 msg
+  ]
+end
 
 
 ;;;
@@ -492,7 +592,7 @@ end
 
 ; faces a random direction and goes ahead
 to move-randomly
-  rotate-random
+  if (random 2 = 0) [ rotate-random ]
   zombie-move-ahead
 end
 
@@ -500,7 +600,7 @@ end
 to zombie-move-ahead
   let ahead (patch-ahead 1)
   ;; check if the cell is free
-  if ([kind] of ahead != BUNKER_FLOOR) and ([kind] of ahead != WALL)
+  if ([kind] of ahead != BUNKER_FLOOR) and ([kind] of ahead != WALL and not any? turtles-on patch-ahead 1)
   [ fd 1 ]
 end
 
@@ -523,7 +623,7 @@ end
 to kill-human
     let kill-nearest-human min-one-of humans in-radius 1 [ distance myself ]
     if (kill-nearest-human != nobody and [ kind ] OF [ patch-here ] OF kill-nearest-human != BUNKER_FLOOR)
-    [ ask kill-nearest-human [ die ] ]
+    [ ask self [ human-to-zombie kill-nearest-human ] ]
 end
 
 ;;; ============================================================================================
@@ -552,46 +652,10 @@ to rotate-random
 end
 
 ;;;
-;;;  Rotate turtle to left
-;;;
-to rotate-left
-  lt 90
-end
-
-;;;
-;;;  Rotate turtle to right
-;;;
-to rotate-right
-  rt 90
-end
-
-;;;
 ;;; ------------------------
 ;;;   Sensors
 ;;; ------------------------
 ;;;
-
-;;;
-;;;  Check if the cell ahead is floor (which means not a wall, not a bunker nor market)
-;;;
-to-report free-cell?
-  let frente (patch-ahead 1)
-  report ([kind] of frente = GROUND)
-end
-
-;;;
-;;;  Check if the cell ahead is a bunker
-;;;
-to-report bunker-cell?
-  report ([kind] of (patch-ahead 1) = BUNKER_FLOOR)
-end
-
-;;;
-;;;  Check if the cell ahead is a market floor
-;;;
-to-report market-cell?
-  report ([kind] of (patch-ahead 1) = MARKET_FLOOR)
-end
 @#$#@#$#@
 GRAPHICS-WINDOW
 321
@@ -712,7 +776,7 @@ FOOD_CONSUME_RATE
 FOOD_CONSUME_RATE
 1
 10
-2
+1
 1
 1
 NIL
