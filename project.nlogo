@@ -149,7 +149,6 @@ to setup-patches
 end
 
 to build-vertical-wall [ ii ]
-  print ii
   let coord 0
   let k 0
 
@@ -168,7 +167,7 @@ to build-vertical-wall [ ii ]
     ask patch coord (k * -1)
     [ set kind WALL
       set pcolor black ]
-    print k
+
     set k k - 1
   ]
 end
@@ -272,7 +271,6 @@ to init-human
   set heading 0
   set world-map build-new-map
   fill-map
-  print-map
   set plan build-empty-plan
   set last-action ""
 end
@@ -348,7 +346,7 @@ to-report random-map-corner
   if (j = 0)
   [ set j -1 ]
 
-  report build-position (i * MAP_WIDTH) (j * MAP_WIDTH)
+  report build-position (i * (MAP_WIDTH - 2)) (j * (MAP_WIDTH - 2))
 end
 
 to-report build-plan-for-intention [iintention]

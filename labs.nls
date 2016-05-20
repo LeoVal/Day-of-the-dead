@@ -16,7 +16,7 @@ to-report find-path [intialPos FinalPos]
   set closed []
   set opened []
   set opened fput (list (list 0 0 intialPos) []) opened
-  
+
   while [not empty? opened]
   [
     set to-explore first opened
@@ -288,8 +288,6 @@ to-report build-path-plan [posi posf]
   set newPlan build-empty-plan
   set path (find-path posi posf)
 
-
-
   foreach path
     [ set newPlan add-instruction-to-plan newPlan build-instruction-find-adjacent-position ? ]
 
@@ -438,8 +436,9 @@ to execute-plan-action
       [ if(instruction-find-heading? currentInstruction)
         [
           ifelse(heading = get-instruction-value currentInstruction)
-          [ if(instruction-search?)
+          [ ifelse(instruction-search? currentInstruction)
             [set plan remove-plan-first-instruction plan]
+            [ human-move-ahead ]
           ]
           [ rotate-right ]
         ]
