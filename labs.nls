@@ -16,7 +16,7 @@ to-report find-path [intialPos FinalPos]
   set closed []
   set opened []
   set opened fput (list (list 0 0 intialPos) []) opened
-
+  
   while [not empty? opened]
   [
     set to-explore first opened
@@ -91,6 +91,7 @@ to-report adjacents [node mobjectivo]
 
   set aux2 []
   set aux free-adjacent-positions (last first node)
+  
   foreach aux [ set aux2 fput (list 0
                                   ((item 1 first node) + 1)
                                    ?)
@@ -127,7 +128,7 @@ to-report free-adjacent-positions [pos]
     [ set solution fput (list (x + 1) y) solution ]
 
   foreach solution
-    [ if not (read-map-position ? = (word "" WALL))
+    [ if (read-map-position ? = (word "" WALL))
       [ set solution remove ? solution ] ]
 
   report solution
@@ -169,26 +170,7 @@ to move-ahead
     [ fd 1
       set current-position position-ahead
       set last-action "move-ahead"
-      if not (backpack = EMPTY_BACKPACK)
-    [move-crate] ]
-end
-
-;;;
-;;;  Returns the crate in front of the human
-;;;  Returns 'nobody' if no boxes are found
-;;;
-to-report crate-ahead
-  report one-of crates-on patch-ahead 1
-end
-
-;;;
-;;;  Move the box to the human's current position
-;;;
-to move-crate
-  let r-xcor xcor
-  let r-ycor ycor
-  ask backpack [set xcor r-xcor]
-  ask backpack [set ycor r-ycor]
+    ]
 end
 
 ;;;
@@ -208,33 +190,10 @@ to rotate-right
 end
 
 ;;;
-;;;  Allow the human to drop the crate
-;;;
-to drop-crate
-  let cell (patch-ahead 1)
-  ;; Check if the human is carrying
-  if not carrying-crate?
-  [
-    ;; drop the box
-    ask backpack [set xcor [pxcor] of cell]
-    ask backpack [set ycor [pycor] of cell]
-    set last-action "drop"
-    set backpack EMPTY_BACKPACK
-  ]
-end
-
-;;;
 ;;; ------------------------
 ;;;   Sensors
 ;;; ------------------------
 ;;;
-
-;;;
-;;;  Check if the human is carrying a box
-;;;
-to-report carrying-crate?
-  report not (backpack = EMPTY_BACKPACK)
-end
 
 ;;;
 ;;;  Check if the cell ahead is a walkable floor (which means not a wall)
@@ -242,27 +201,6 @@ end
 to-report free-cell?
   let frente (patch-ahead 1)
   report ([kind] of frente != WALL)
-end
-
-;;;
-;;;  Check if the cell ahead contains a crate
-;;;
-to-report cell-has-crate?
-  report any? crates-on (patch-ahead 1)
-end
-
-;;;
-;;;  Check if the cell ahead is a market
-;;;
-to-report market-cell?
-  report ([kind] of (patch-ahead 1) = MARKET_FLOOR)
-end
-
-;;;
-;;;  Check if the cell ahead is a bunker
-;;;
-to-report bunker-cell?
-  report ([kind] of (patch-ahead 1) = BUNKER_FLOOR)
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -295,32 +233,24 @@ to-report build-instruction-find-adjacent-position [aadjacent-position]
   report build-instruction "ad" aadjacent-position
 end
 
-to-report build-instruction-find-heading [hheading]
-  report build-instruction "h" hheading
-end
-
-to-report build-instruction-drop []
-  report build-instruction "d" ""
-end
-
-to-report build-instruction-grab []
-  report build-instruction "g" ""
-end
-
 to-report instruction-find-adjacent-position? [iinstruction]
   report get-instruction-type iinstruction = "ad"
+end
+
+to-report build-instruction-find-heading [hheading]
+  report build-instruction "h" hheading
 end
 
 to-report instruction-find-heading? [iinstruction]
   report get-instruction-type iinstruction = "h"
 end
 
-to-report instruction-drop? [iinstruction]
-  report get-instruction-type iinstruction = "d"
+to-report build-instruction-search []
+  report build-instruction "s" ""
 end
 
-to-report instruction-grab? [iinstruction]
-  report get-instruction-type iinstruction = "g"
+to-report instruction-search? [iinstruction]
+  report get-instruction-type iinstruction = "s"
 end
 
 ;;;
@@ -357,6 +287,9 @@ to-report build-path-plan [posi posf]
 
   set newPlan build-empty-plan
   set path (find-path posi posf)
+
+
+
   foreach path
     [ set newPlan add-instruction-to-plan newPlan build-instruction-find-adjacent-position ? ]
 
@@ -405,29 +338,8 @@ end
 ;;; The heading is a possible heading to be in front of the shelf position
 ;;; If no shelf of the given color is available, it will return an empty list
 ;;;
-to-report adjacent-position-of-food [ssize]
-  let aux 0
-  let adjacentPosition 0
-  let foodpos 0
-
-  set aux find-crate-of-size ssize
-
-  ifelse not empty? aux
-    [
-      set adjacentPosition one-of free-adjacent-positions first aux
-      report list adjacentPosition calculate-heading adjacentPosition (first aux)
-    ]
-    [ report [] ]
-end
-
-to-report food-exists?
-  report (find-crate-of-size SMALL or find-crate-of-size MEDIUM or find-crate-of-size LARGE)
-end
-
-to-report find-crate-of-size [ ssize ]
-  let aux 0
-
-;;;TODO find food on world-map
+to-report adjacent-position-of-position [ zombie ]
+report build-position 2 2
 end
 
 ;;;
@@ -508,8 +420,31 @@ end
 ;;;  Execute the next action of the current plan
 ;;;
 to execute-plan-action
-  ;TODO FIX THIS PLS. lab 3 example
- 
+  let currentInstruction 0
+
+  set currentInstruction get-plan-first-instruction plan
+
+  ifelse(instruction-find-adjacent-position? currentInstruction)
+    [
+      ifelse(position-ahead = get-instruction-value currentInstruction)
+        [
+          ifelse(free-cell?)
+          [ move-ahead
+            set plan remove-plan-first-instruction plan ]
+          [  ]
+        ]
+        [ rotate-right ]
+      ]
+      [ if(instruction-find-heading? currentInstruction)
+        [
+          ifelse(heading = get-instruction-value currentInstruction)
+          [ if(instruction-search?)
+            [set plan remove-plan-first-instruction plan]
+          ]
+          [ rotate-right ]
+        ]
+      ]
+    
 end
 
 ;;;
@@ -518,16 +453,21 @@ end
 to-report intention-succeeded? [iintention]
   let ddesire 0
 
+
   if(empty-intention? iintention)
     [ report false ]
 
   set ddesire get-intention-desire iintention
-  ifelse(ddesire = "food")
-  [ report not (backpack = EMPTY_BACKPACK) ]
-  [ ifelse(ddesire = "drop")
-    [ report last-action = "drop"]
-    [ report false ]
+  ifelse(ddesire = "search")
+  [ report equal-positions? current-position item 1 iintention ]
+  [ ifelse(ddesire = "hunt")
+    [ ;TODO do me
+      ]
+    [ human-move-randomly
+       ]
   ]
+  
+  
 end
 
 ;;;
@@ -535,10 +475,5 @@ end
 ;;;  However, in this scenario, the only intention that can become impossible is "grab", which is already tested in 'execute-plan-action'
 ;;;
 to-report impossible-intention? [iintention]
-  let ddesire item 0 iintention
-  
-  if (ddesire = "food")
-  [ if (not food-exists?)
-    [ report true ]
-  ]
+  report false
 end

@@ -15,42 +15,28 @@ globals [
   UNKNOWN
   GROUND
   WALL
-  BUNKER_FLOOR
-  MARKET_FLOOR
-  SMALL
-  MEDIUM
-  LARGE
-  HUMAN-RESPAWN-TIMER
+  ZOMBIE_SQUARE
+
   RESPAWN-TIMER
   ZOMBIE-RESPAWN-TIMER
-  CRATE-RESPAWN-TIMER
-  EMPTY_BACKPACK
-  FOOD
-  MAP_WIDTH
+  KILLS
 ]
 
 ;;;
 ;;;  Set global variables' values
 ;;;
 to set-globals
-  ;;; map variables
+  ;;; Map variables
   set UNKNOWN 0
   set GROUND 1
   set WALL 2
-  set BUNKER_FLOOR 3
-  set MARKET_FLOOR 4
-  set SMALL 5
-  set MEDIUM 6
-  set LARGE 7
-  set MAP_WIDTH 31
+  set ZOMBIE_SQUARE 3
 
-  ;;; global variables
-  set FOOD 200
-  set RESPAWN-TIMER 50
+  ;;; Global variables
+  set KILLS 0
+  set RESPAWN-TIMER 200
   set Human-Strategy "BDI"
-  set HUMAN-RESPAWN-TIMER RESPAWN-TIMER * 3
   set ZOMBIE-RESPAWN-TIMER RESPAWN-TIMER
-  set CRATE-RESPAWN-TIMER RESPAWN-TIMER * 2
 end
 
 ;;;
@@ -58,20 +44,16 @@ end
 ;;;
 breed [ humans human ]
 breed [ zombies zombie ]
-breed [ crates crate]
 
 ;;;
 ;;;  Declare cells' properties
 ;;;
-patches-own [kind floor-type]
 
 ;;;
-;;;  The crates have a size property and humans have a backpack
+;;;  Agent's variables
 ;;;
-crates-own [crate-size]
 humans-own [
   field-of-depth
-  backpack
 
   world-map
   current-position
@@ -86,6 +68,10 @@ zombies-own[
   last-action
 ]
 
+patches-own[
+  kind
+]
+
 ;;;
 ;;;  Reset the simulation
 ;;;
@@ -96,23 +82,23 @@ to reset
   ;; of the procedure.)
   ;;__clear-all-and-reset-ticks
   clear-all
-  reset-ticks
+  resize-world MAP_WIDTH * -1 MAP_WIDTH MAP_WIDTH * -1 MAP_WIDTH
   set-globals
   setup-patches
   setup-turtles
   init-agents
+  reset-ticks
 end
 
 ;;;
 ;;;  Setup all the agents. Create humans ands 4 crates
 ;;;
 to setup-turtles
-  let human-count 10
+  let human-count 1
   let i 0
 
   set-default-shape humans "person"
   set-default-shape zombies "person"
-  set-default-shape crates "box"
 
   create-humans human-count
   while [ i < human-count ]
@@ -121,81 +107,70 @@ to setup-turtles
     ask turtle i [ init-human ]
     set i i + 1
   ]
-end
 
-;;;
-;;;  Setup the environment. Populate the room.
-;;;
-to setup-market [ setup-market-size i ]
-    let setup-x-market 8
-    let setup-y-market 8
-
-    let j 0
-
-    while [ j < setup-market-size]
-      [
-        ;top left
-        ask patch (-1 * (setup-x-market + j)) (setup-y-market + i) [set pcolor gray + 3]
-        ask patch (-1 * (setup-x-market + j)) (setup-y-market + i) [set kind MARKET_FLOOR]
-
-        ;top right
-        ask patch (setup-x-market + j) (setup-y-market + i) [set pcolor gray + 3]
-        ask patch (setup-x-market + j) (setup-y-market + i) [set kind MARKET_FLOOR]
-
-        ;bottom left
-        ask patch (-1 * (setup-x-market + j)) ((setup-y-market + i) * -1) [set pcolor gray + 3]
-        ask patch (-1 * (setup-x-market + j)) ((setup-y-market + i) * -1) [set kind MARKET_FLOOR]
-
-        ;bottom right
-        ask patch (setup-x-market + j) ((setup-y-market + i) * -1) [set pcolor gray + 3]
-        ask patch (setup-x-market + j) ((setup-y-market + i) * -1) [set kind MARKET_FLOOR]
-        set j j + 1
-      ]
+  spawn-zombies 1
 end
 
 to setup-patches
+  ;; Build the wall
+  let i 0
+  let j 0
+
   ;; Build the floor
   ask patches [
     set kind GROUND
-    set pcolor green + 6 ]
-
-  ;; Build the wall
-  foreach [-15 -14 -13 -12 -11 -10 -9 -8 -7 -6 -5 -4 -3 -2 -1 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15]
-  [ ask patch ? -15 [set pcolor black]
-    ask patch ? -15 [set kind WALL]
-    ask patch ? 15 [set pcolor black]
-    ask patch ? 15 [set kind WALL]
-    ask patch -15 ? [set pcolor black]
-    ask patch -15 ? [set kind WALL]
-    ask patch 15 ? [set pcolor black]
-    ask patch 15 ? [set kind WALL]]
-
-  ;; Build the markets
-
-
-  let i 0
-  let setup-market-size 5
-  while [ i < setup-market-size]
-  [
-    setup-market setup-market-size i
-    set i i + 1
+    set pcolor green + 6
   ]
 
-  ;; Build the bunker
-  foreach [-2 -1 0 1 2]
+  set i MAP_WIDTH
+  while [i >= 0]
   [
-    ask patch ? -2 [set pcolor yellow]
-    ask patch ? -2 [set kind BUNKER_FLOOR]
-    ask patch ? -1 [set pcolor yellow]
-    ask patch ? -1 [set kind BUNKER_FLOOR]
-    ask patch ? 0 [set pcolor yellow]
-    ask patch ? 0 [set kind BUNKER_FLOOR]
-    ask patch ? 1 [set pcolor yellow]
-    ask patch ? 1 [set kind BUNKER_FLOOR]
-    ask patch ? 2 [set pcolor yellow]
-    ask patch ? 2 [set kind BUNKER_FLOOR]
-  ]
+    if (i = 0 or i = MAP_WIDTH)
+    [ build-vertical-wall i ]
 
+    ; Top walls
+    ask patch i MAP_WIDTH
+    [ set kind WALL
+      set pcolor black ]
+    ask patch (i * -1) MAP_WIDTH
+    [ set kind WALL
+      set pcolor black ]
+
+    ; Bottom walls
+    ask patch i (MAP_WIDTH * -1)
+    [ set kind WALL
+      set pcolor black ]
+    ask patch (i * -1) (MAP_WIDTH  * -1)
+    [ set kind WALL
+      set pcolor black ]
+
+    set i i - 1
+  ]
+end
+
+to build-vertical-wall [ ii ]
+  print ii
+  let coord 0
+  let k 0
+
+  ifelse (ii > 0 )
+  [ set coord MAP_WIDTH ]
+  [ set coord (MAP_WIDTH * -1) ]
+
+  set k MAP_WIDTH
+
+  while [k >= 0]
+  [
+    ask patch coord k
+    [ set kind WALL
+      set pcolor black ]
+
+    ask patch coord (k * -1)
+    [ set kind WALL
+      set pcolor black ]
+    print k
+    set k k - 1
+  ]
 end
 
 ;;;
@@ -209,15 +184,8 @@ to-report zombie-count
   report count zombies
 end
 
-to-report food-levels
-  report FOOD
-end
-
-;;;
-;;;  Return number of humans in the bunket
-;;;
-to-report initial-positions
-
+to-report kills-count
+  report KILLS
 end
 
 ;;;
@@ -226,7 +194,7 @@ end
 to go
   tick
 
-    ;; the zombies action
+  ;; the zombies action
   ask zombies [
       zombie-loop
   ]
@@ -236,17 +204,8 @@ to go
       human-loop
   ]
 
-  if (FOOD <= 0)
-  [ starve-humans ]
-  if (FOOD >= 0)
-  [ set FOOD FOOD - FOOD_CONSUME_RATE ]
-
-  spawn-human
-  spawn-zombie
-  spawn-crate
-
   ;; Check if the goal was achieved, is everyone dead yet?
-  if head-count = 0
+  if ticks > TICK_LIMIT
     [ stop ]
 end
 
@@ -258,60 +217,16 @@ end
 ;;;  =================================================================
 
 ;;;
-;;;  Creates a new crate
-;;;  Green boxes are small, blue are medium, red are large
-;;;
-to spawn-crate
-  let coord-list [-10 10]
-  if CRATE-RESPAWN-TIMER <= 0 [
-    create-crates 1 [
-      ;; set crates variables
-      let i random 100
-      if i > 90 and i < 100
-      [ set crate-size LARGE
-        set color red]
-      if i > 70 and i < 90
-      [ set crate-size MEDIUM
-        set color blue ]
-      if i > 0 and i < 60
-      [ set crate-size SMALL
-        set color green ]
-      set size 0.7
-      set heading 0
-      set xcor one-of coord-list + random 5 - 2
-      set ycor one-of coord-list + random 5 - 2
-      set CRATE-RESPAWN-TIMER random RESPAWN-TIMER
-    ]
-  ]
-  set CRATE-RESPAWN-TIMER CRATE-RESPAWN-TIMER - 1
-end
-
-;;;
-;;;  Creates a new human
-;;;
-to spawn-human
-  if HUMAN-RESPAWN-TIMER <= 0 [
-    create-humans 1 [
-      ;; set human
-      init-human
-      set HUMAN-RESPAWN-TIMER random RESPAWN-TIMER
-    ]
-  ]
-  set HUMAN-RESPAWN-TIMER HUMAN-RESPAWN-TIMER - 1
-end
-
-;;;
 ;;;  Creates a new zombie
 ;;;
-to spawn-zombie
-  if ZOMBIE-RESPAWN-TIMER <= 0 [
-    create-zombies 1 [
+to spawn-zombies [ number ]
+while [number > 0]
+[    create-zombies 1 [
       ;; set the zombie
       init-zombie
-      set ZOMBIE-RESPAWN-TIMER random RESPAWN-TIMER
     ]
-  ]
-  set ZOMBIE-RESPAWN-TIMER ZOMBIE-RESPAWN-TIMER - 1
+    set number number - 1
+]
 end
 
 ;;;
@@ -355,8 +270,9 @@ to init-human
   set ycor (-2 + random 5)
   set current-position build-position xcor ycor
   set heading 0
-  set backpack EMPTY_BACKPACK
   set world-map build-new-map
+  fill-map
+  print-map
   set plan build-empty-plan
   set last-action ""
 end
@@ -368,11 +284,16 @@ to human-loop
   update-status vision
   send-message list "update" vision
 
+  if (Human-Strategy = "Reactive")
+  [ human-reactive ]
   if (Human-Strategy = "BDI")
   [ human-BDI ]
   if (Human-Strategy = "Learning")
   [ human-learning ]
 
+end
+
+to human-reactive
 end
 
 to human-learning
@@ -383,55 +304,74 @@ to human-BDI
 
   ifelse not (empty-plan? plan or intention-succeeded? intention or impossible-intention? intention)
   [
-    ;execute-plan-action
+    execute-plan-action
   ]
   [
     ;; Check the robot's options
-    set desire prefered-action
+    set desire BDI-desire
     set intention BDI-filter
     set plan build-plan-for-intention intention
 
-    ; if no plan go towards bunker
     ;TODO
 
   ]
 end
 
 ; generates the human's current desire
-to-report prefered-action
-  ifelse ( FOOD < 150 )
-  [ report "food" ]
-  [
-    report "explore"
-  ]
+to-report BDI-desire
+  ifelse (not (member? (word "" ZOMBIE_SQUARE) world-map))
+  [ report "search" ]
+  [ report "hunt" ]
 end
 
 to-report BDI-filter
   let pos-or 0
 
-  ifelse desire = "explore"
-  [
-    report build-intention desire [10 10] 90
-  ]
-  [
-    ifelse desire = "food"
-    [
-      set pos-or [-13 -13]
+  ifelse desire = "search"[
+    set pos-or random-map-corner
+    report build-intention desire build-position item 0 pos-or item 1 pos-or 0
+  ] [
+    if desire = "hunt" [
+      set pos-or build-position 0 0
       report build-intention desire item 0 pos-or item 1 pos-or
-    ]
-    [
-      if desire = "drop"
-      [
-        set pos-or [0 0]
-        report build-intention desire item 0 pos-or item 1 pos-or
-      ]
     ]
   ]
   report build-empty-intention
 end
 
+to-report random-map-corner
+  let i random 2
+  let j random 2
+
+  if (i = 0)
+  [ set i -1 ]
+  if (j = 0)
+  [ set j -1 ]
+
+  report build-position (i * MAP_WIDTH) (j * MAP_WIDTH)
+end
+
 to-report build-plan-for-intention [iintention]
-  report []
+  let new-plan 0
+
+  set new-plan build-empty-plan
+
+  if  not empty-intention? iintention
+  [
+    set new-plan build-path-plan current-position item 1 iintention
+    set new-plan add-instruction-to-plan new-plan build-instruction-find-heading item 2 iintention
+
+    if get-intention-desire iintention = "search"
+    [
+      set new-plan add-instruction-to-plan new-plan build-instruction-search
+    ]
+    if get-intention-desire iintention = "hunt"
+    [
+      ;todo hunting instructions
+    ]
+  ]
+
+  report new-plan
 end
 
 to update-status [ vision ]
@@ -475,7 +415,9 @@ to-report build-new-map
 
   set m ""
 
-  repeat 31 * 31
+  let mapsize (MAP_WIDTH * 2) + 1
+
+  repeat mapsize * mapsize
     [ set m word m UNKNOWN ]
 
   report m
@@ -488,16 +430,26 @@ to write-map [pos mtype]
   set x item 0 pos
   set y item 1 pos
 
-  set world-map replace-item ((x + 15) + (y + 15) * 31) world-map (word "" mtype)
+  set world-map replace-item ((x + MAP_WIDTH) + (y + MAP_WIDTH) * (MAP_WIDTH * 2 + 1)) world-map (word "" mtype)
 end
 
 to-report read-map-position [pos]
   let x 0
   let y 0
+  let mapsize 0
 
   set x item 0 pos
   set y item 1 pos
-  report item ((x + 15) + (y + 15) * 31) world-map
+  set mapsize (2 * MAP_WIDTH) + 1
+
+  report item ((x + MAP_WIDTH) + (y + MAP_WIDTH) * mapsize) world-map
+end
+
+to fill-map
+foreach sort patches
+[
+  write-map ( build-position [pxcor] of ?1 [pycor] of ?1 ) [kind] of ?1
+]
 end
 
 ;;;
@@ -519,16 +471,6 @@ to human-move-ahead
   [ fd 1
     set current-position position-ahead
   ]
-end
-
-;;;  Allow the human to grab the crate
-to grab-crate
-  let crate crate-ahead
-  ; Check if there is a crate on the cell ahead
-  if crate != nobody
-    [ set backpack crate
-      set last-action "grab"
-      move-crate ]
 end
 
 to kill-zombie
@@ -555,45 +497,23 @@ end
 ;;;
 ;;;  =================================================================
 to init-zombie
-  let coord-list [-13 13]
   set color black
   set heading 0
-  set xcor one-of coord-list
-  set ycor one-of coord-list
+  set xcor random MAP_WIDTH
+  set ycor random MAP_WIDTH
 end
 
 to zombie-loop
-  ifelse ( human-nearby? )
-  [
-    face-closest-human
-    kill-human
-    chase-human
-  ]
-  [ move-randomly ]
+  move-randomly
 end
 
 ;;;
 ;;;   Sensors
 ;;;
 
-;;;  Check if there are humans around
-to-report human-nearby?
-  let nearest-neighbor nobody
-  set nearest-neighbor min-one-of humans in-radius 3 [ distance myself ]
-  ifelse (nearest-neighbor = nobody)
-  [ report false ]
-  [report true]
-end
-
 ;;;
 ;;;   Actuators
 ;;;
-
-; goes in the nearest human's direction
-to chase-human
-  face-closest-human
-  zombie-move-ahead
-end
 
 ; faces a random direction and goes ahead
 to move-randomly
@@ -605,40 +525,8 @@ end
 to zombie-move-ahead
   let ahead (patch-ahead 1)
   ;; check if the cell is free
-  if ([kind] of ahead != BUNKER_FLOOR) and ([kind] of ahead != WALL and not any? turtles-on patch-ahead 1)
+  if ([kind] of ahead != WALL and not any? turtles-on patch-ahead 1)
   [ fd 1 ]
-end
-
-; turns the zombie to the nearest human
-to face-closest-human
-  let nearest-human min-one-of humans in-radius 3 [ distance myself ]
-  let hx [xcor] OF nearest-human
-  let hy [ycor] OF nearest-human
-
-  let x hx - [xcor] OF self
-  let y hy - [ycor] OF self
-
-  if (nearest-human != nobody and x != 0 and y != 0)
-  [
-  set heading atan x y
-  ]
-end
-
-; kills the nearest human who isnt in the bunker. 1 block minimum distance
-to kill-human
-    let kill-nearest-human min-one-of humans in-radius 1 [ distance myself ]
-    if (kill-nearest-human != nobody and [ kind ] OF [ patch-here ] OF kill-nearest-human != BUNKER_FLOOR)
-    [ ask self [ human-to-zombie kill-nearest-human ] ]
-end
-
-;;; ============================================================================================
-
-;;; General functions. Everyone can use these.
-
-to starve-humans
-let starve-random-human one-of humans
-  if (starve-random-human != nobody and (ticks mod 5 = 0))
-  [ ask starve-random-human [ die] ]
 end
 
 ;;;
@@ -663,13 +551,13 @@ end
 ;;;
 @#$#@#$#@
 GRAPHICS-WINDOW
-321
+526
 10
-858
-568
-15
-15
-17.0
+1061
+566
+10
+10
+25.0
 1
 10
 1
@@ -679,10 +567,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--15
-15
--15
-15
+-10
+10
+-10
+10
 0
 0
 1
@@ -769,41 +657,68 @@ CHOOSER
 115
 Human-Strategy
 Human-Strategy
-"BDI" "Learning"
-0
+"Reactive" "BDI" "Learning"
+1
 
 SLIDER
-46
-435
-230
-468
-FOOD_CONSUME_RATE
-FOOD_CONSUME_RATE
-1
-10
-1
+29
+156
+210
+189
+HUMAN_INITIAL_COUNT
+HUMAN_INITIAL_COUNT
+4
+12
+4
 1
 1
 NIL
 HORIZONTAL
 
-PLOT
-38
-277
-238
-427
-plot 1
-Ticks
-Food
-0.0
-10.0
-0.0
-250.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -2674135 true "" "plot food-levels"
+SLIDER
+24
+192
+201
+225
+ZOMBIE_INITIAL_COUNT
+ZOMBIE_INITIAL_COUNT
+1
+5
+5
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+30
+120
+202
+153
+TICK_LIMIT
+TICK_LIMIT
+500
+2000
+501
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+28
+283
+200
+316
+MAP_WIDTH
+MAP_WIDTH
+5
+15
+10
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## ABSTRACT TYPES
