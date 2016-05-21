@@ -152,28 +152,6 @@ end
 ;;;
 
 ;;;
-;;;  Move the human forward or rotate with a 25% probability
-;;;
-to move-random
-  ifelse (random 4 = 0)
-    [ rotate-random ]
-    [ move-ahead ]
-end
-
-;;;
-;;;  Move the human forward
-;;;
-to move-ahead
-  let ahead (patch-ahead 1)
-  ;; check if the cell is free
-  if ([kind] of ahead != WALL)
-    [ fd 1
-      set current-position position-ahead
-      set last-action "move-ahead"
-    ]
-end
-
-;;;
 ;;;  Rotate turtle to left
 ;;;
 to rotate-left
@@ -426,10 +404,8 @@ to execute-plan-action
     [
       ifelse(position-ahead = get-instruction-value currentInstruction)
         [
-          ifelse(free-cell?)
-          [ move-ahead
-            set plan remove-plan-first-instruction plan ]
-          [  ]
+           human-move-ahead
+            set plan remove-plan-first-instruction plan 
         ]
         [ rotate-right ]
       ]
@@ -438,7 +414,8 @@ to execute-plan-action
           ifelse(heading = get-instruction-value currentInstruction)
           [ ifelse(instruction-search? currentInstruction)
             [set plan remove-plan-first-instruction plan]
-            [ human-move-ahead ]
+            [ 
+              human-move-ahead ]
           ]
           [ rotate-right ]
         ]

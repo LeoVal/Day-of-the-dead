@@ -97,18 +97,19 @@ to setup-turtles
   let human-count 1
   let i 0
 
-  set-default-shape humans "person"
-  set-default-shape zombies "person"
+  set-default-shape humans "arrow"
+  set-default-shape zombies "arrow"
 
   create-humans human-count
   while [ i < human-count ]
   [
     ;; set human
-    ask turtle i [ init-human ]
+    ask turtle i [ init-human
+      set size 0.7 ]
     set i i + 1
   ]
 
-  spawn-zombies 1
+  spawn-zombies ZOMBIE_INITIAL_COUNT
 end
 
 to setup-patches
@@ -119,7 +120,7 @@ to setup-patches
   ;; Build the floor
   ask patches [
     set kind GROUND
-    set pcolor green + 6
+    set pcolor green + 8
   ]
 
   set i MAP_WIDTH
@@ -219,13 +220,15 @@ end
 ;;;  Creates a new zombie
 ;;;
 to spawn-zombies [ number ]
-while [number > 0]
-[    create-zombies 1 [
+  while [number > 0]
+  [
+    create-zombies 1
+    [
       ;; set the zombie
       init-zombie
     ]
     set number number - 1
-]
+  ]
 end
 
 ;;;
@@ -264,7 +267,7 @@ end
 ;;;  =================================================================
 to init-human
   set field-of-depth 5
-  set color blue
+  set color white
   set xcor (-2 + random 5)
   set ycor (-2 + random 5)
   set current-position build-position xcor ycor
@@ -292,6 +295,9 @@ to human-loop
 end
 
 to human-reactive
+  ifelse ( any? zombies-on patch-ahead 1 )
+  [ kill-zombie ]
+  [ human-move-randomly ]
 end
 
 to human-learning
@@ -346,7 +352,7 @@ to-report random-map-corner
   if (j = 0)
   [ set j -1 ]
 
-  report build-position (i * (MAP_WIDTH - 2)) (j * (MAP_WIDTH - 2))
+  report build-position ((i * (MAP_WIDTH - 2)) * random 2) ((j * (MAP_WIDTH - 2)) * random 2)
 end
 
 to-report build-plan-for-intention [iintention]
@@ -370,6 +376,13 @@ to-report build-plan-for-intention [iintention]
   ]
 
   report new-plan
+end
+
+;;;
+;;;  A colision between robots occured whihe executing the plan
+;;;
+to collided
+  set plan build-plan-for-intention intention
 end
 
 to update-status [ vision ]
@@ -456,18 +469,18 @@ end
 
 ; faces a random direction and moves ahead
 to human-move-randomly
-
-  if (random 1 = 0) [ rotate-random ]
-  human-move-ahead
+  ifelse (random 2 = 0) [ rotate-random ]
+  [human-move-ahead]
 end
 
 ; moves 1 patch ahead. cant walk into walls
 to human-move-ahead
   let ahead (patch-ahead 1)
   ;; check if the cell is free
-  if ([kind] of ahead != WALL)
+  if (free-cell?)
   [ fd 1
     set current-position position-ahead
+    set last-action "move-ahead"
   ]
 end
 
@@ -502,7 +515,7 @@ to init-zombie
 end
 
 to zombie-loop
-  move-randomly
+  zombie-move-randomly
 end
 
 ;;;
@@ -514,9 +527,9 @@ end
 ;;;
 
 ; faces a random direction and goes ahead
-to move-randomly
-  if (random 2 = 0) [ rotate-random ]
-  zombie-move-ahead
+to zombie-move-randomly
+  ifelse (random 2 = 0) [ rotate-random ]
+  [ zombie-move-ahead ]
 end
 
 ;;;  Move the zombie 1 step forward. Zombies cant walk on Bunker
@@ -547,14 +560,20 @@ end
 ;;;   Sensors
 ;;; ------------------------
 ;;;
+to-report zombies-ahead?
+  let ahead (patch-ahead 1)
+  ifelse (zombies-on ahead = nobody)
+  [ report false ]
+  [ report true ]
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
 526
 10
-1061
-566
-10
-10
+811
+316
+5
+5
 25.0
 1
 10
@@ -565,12 +584,12 @@ GRAPHICS-WINDOW
 0
 0
 1
--10
-10
--10
-10
-0
-0
+-5
+5
+-5
+5
+1
+1
 1
 ticks
 30.0
@@ -627,10 +646,10 @@ NIL
 1
 
 MONITOR
-70
-407
-156
-452
+47
+283
+133
+328
 Total humans
 head-count
 0
@@ -638,10 +657,10 @@ head-count
 11
 
 MONITOR
-167
-406
-251
-451
+142
+283
+226
+328
 Total zombies
 zombie-count
 0
@@ -674,15 +693,15 @@ NIL
 HORIZONTAL
 
 SLIDER
-45
-192
-222
-225
+51
+196
+224
+229
 ZOMBIE_INITIAL_COUNT
 ZOMBIE_INITIAL_COUNT
 1
 5
-5
+1
 1
 1
 NIL
@@ -704,15 +723,15 @@ NIL
 HORIZONTAL
 
 SLIDER
-48
-232
-220
-265
+51
+235
+223
+268
 MAP_WIDTH
 MAP_WIDTH
 5
 15
-10
+5
 1
 1
 NIL
