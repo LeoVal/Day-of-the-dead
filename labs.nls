@@ -84,7 +84,6 @@ to-report heuristic [node mgoal]
          2 * (abs(x - item 0 mgoal) +  abs(y - item 1 mgoal))
 end
 
-
 to-report adjacents [node mobjectivo]
   let aux 0
   let aux2 0
@@ -128,9 +127,11 @@ to-report free-adjacent-positions [pos]
     [ set solution fput (list (x + 1) y) solution ]
 
   foreach solution
-    [ if (read-map-position ? = (word "" WALL))
-      [ set solution remove ? solution ] ]
-
+  [ 
+    let square read-map-position ?
+    if (square = (word "" WALL) or square = (word "" OCCUPIED))
+    [ set solution remove ? solution ] ]
+  
   report solution
 end
 
@@ -178,7 +179,10 @@ end
 ;;;
 to-report free-cell?
   let frente (patch-ahead 1)
-  report ([kind] of frente != WALL)
+  let occupied-flag (([kind] of frente != WALL) and (not any? turtles-on frente))
+  
+  show (word "cell ahead is free? " occupied)
+  report occupied-flag
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -229,6 +233,14 @@ end
 
 to-report instruction-search? [iinstruction]
   report get-instruction-type iinstruction = "s"
+end
+
+to-report build-instruction-hunt []
+  report build-instruction "hunt" ""
+end
+
+to-report instruction-hunt? [iinstruction]
+  report get-instruction-type iinstruction = "hunt"
 end
 
 ;;;
@@ -306,16 +318,6 @@ end
 
 to-report empty-intention? [iintention]
   report empty? iintention
-end
-
-;;;
-;;; Return a list with a position and a heading
-;;; The position is an adjacent position of a free shelf of the given color
-;;; The heading is a possible heading to be in front of the shelf position
-;;; If no shelf of the given color is available, it will return an empty list
-;;;
-to-report adjacent-position-of-position [ zombie ]
-report build-position 2 2
 end
 
 ;;;
@@ -400,27 +402,44 @@ to execute-plan-action
 
   set currentInstruction get-plan-first-instruction plan
 
+show "ok, lets do this"
+
   ifelse(instruction-find-adjacent-position? currentInstruction)
     [
+      print "IF 'ad' instructions"
       ifelse(position-ahead = get-instruction-value currentInstruction)
         [
-           human-move-ahead
-            set plan remove-plan-first-instruction plan 
+                print "IF ahead = instructions target"
+          if (free-cell?)
+          [ 
+                  print "ok, lets move"
+            human-move-ahead
+            set plan remove-plan-first-instruction plan ]
         ]
         [ rotate-right ]
       ]
       [ if(instruction-find-heading? currentInstruction)
         [
           ifelse(heading = get-instruction-value currentInstruction)
-          [ ifelse(instruction-search? currentInstruction)
-            [set plan remove-plan-first-instruction plan]
-            [ 
-              human-move-ahead ]
+          [
+            set plan remove-plan-first-instruction plan 
           ]
           [ rotate-right ]
         ]
       ]
-    
+  if(instruction-search? currentInstruction)
+  [
+    set plan remove-plan-first-instruction plan
+  ]
+  ifelse(instruction-hunt? currentinstruction)
+  [
+   if (zombies-ahead?)
+   [ kill-zombie ]
+  ]
+  [
+    set plan build-empty-plan
+  ]
+  
 end
 
 ;;;
@@ -428,28 +447,39 @@ end
 ;;;
 to-report intention-succeeded? [iintention]
   let ddesire 0
-
+  let target-zombie 0
+  let iiposition item 1 iintention
 
   if(empty-intention? iintention)
     [ report false ]
 
   set ddesire get-intention-desire iintention
   ifelse(ddesire = "search")
-  [ report equal-positions? current-position item 1 iintention ]
-  [ ifelse(ddesire = "hunt")
-    [ ;TODO do me
-      ]
-    [ human-move-randomly
-       ]
+  [ report (equal-positions? current-position iiposition) or (member? word "" ZOMBIE_SQUARE world-map) ]
+  [ 
+    if(ddesire = "hunt")
+    [ 
+      show (word "my prey is on: " prey)
+      ifelse(not any? zombies-on patch item 0 prey item 1 prey)
+      [ report true ]
+      [ report false ]
+    ]
   ]
-  
+
+  report false
   
 end
 
-;;;
-;;;  Check if an intention cannot be achieved anymore
-;;;  However, in this scenario, the only intention that can become impossible is "grab", which is already tested in 'execute-plan-action'
-;;;
+
 to-report impossible-intention? [iintention]
+
+  if(empty-intention? iintention)
+    [ report false ]
+
+  if (item 0 iintention = "hunt") ;TODO. isto devia usar o mapa interno
+  [  if (not any? zombies-on patch item 0 item 1 iintention item 1 item 1 iintention)
+    [ report false ]
+  ]
+  
   report false
 end

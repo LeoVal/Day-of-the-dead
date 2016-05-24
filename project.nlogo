@@ -16,6 +16,8 @@ globals [
   GROUND
   WALL
   ZOMBIE_SQUARE
+  HUNTER
+  OCCUPIED
 
   RESPAWN-TIMER
   ZOMBIE-RESPAWN-TIMER
@@ -31,6 +33,8 @@ to set-globals
   set GROUND 1
   set WALL 2
   set ZOMBIE_SQUARE 3
+  set HUNTER 4
+  set OCCUPIED 5
 
   ;;; Global variables
   set KILLS 0
@@ -57,6 +61,9 @@ humans-own [
 
   world-map
   current-position
+
+  team
+  prey
 
   desire
   intention
@@ -94,8 +101,10 @@ end
 ;;;  Setup all the agents. Create humans ands 4 crates
 ;;;
 to setup-turtles
-  let human-count 1
+  let human-count HUMAN_INITIAL_COUNT
   let i 0
+  let xxcor (MAP_WIDTH * -1) + 1
+  let yycor MAP_WIDTH - 1
 
   set-default-shape humans "arrow"
   set-default-shape zombies "arrow"
@@ -105,6 +114,10 @@ to setup-turtles
   [
     ;; set human
     ask turtle i [ init-human
+      set xcor xxcor
+      set ycor yycor - i
+      set current-position build-position xcor ycor
+      set heading 90
       set size 0.7 ]
     set i i + 1
   ]
@@ -266,12 +279,8 @@ end
 ;;;
 ;;;  =================================================================
 to init-human
-  set field-of-depth 5
+  set field-of-depth SIGHT_RANGE
   set color white
-  set xcor (-2 + random 5)
-  set ycor (-2 + random 5)
-  set current-position build-position xcor ycor
-  set heading 0
   set world-map build-new-map
   fill-map
   set plan build-empty-plan
@@ -281,9 +290,9 @@ end
 to human-loop
 
   ; Gets input from world, updates map and tells everyone what he saw
-  let vision patches in-cone field-of-depth 90
+  let vision patches in-radius field-of-depth
   update-status vision
-  send-message list "update" vision
+  send-message-to-others list "update" vision
 
   if (Human-Strategy = "Reactive")
   [ human-reactive ]
@@ -306,12 +315,15 @@ end
 
 to human-BDI
 
+show "bdi"
   ifelse not (empty-plan? plan or intention-succeeded? intention or impossible-intention? intention)
   [
+    show "if"
     execute-plan-action
   ]
   [
-    ;; Check the robot's options
+    show "else"
+    ;; Check the human's options
     set desire BDI-desire
     set intention BDI-filter
     set plan build-plan-for-intention intention
@@ -336,11 +348,38 @@ to-report BDI-filter
     report build-intention desire build-position item 0 pos-or item 1 pos-or 0
   ] [
     if desire = "hunt" [
-      set pos-or build-position 0 0
-      report build-intention desire item 0 pos-or item 1 pos-or
+      set pos-or find-zombie-position
+      set prey pos-or
+      let target-position assign-positions pos-or
+      report build-intention desire item 0 target-position item 1 target-position
     ]
   ]
   report build-empty-intention
+end
+
+to-report find-zombie-position
+  let i MAP_WIDTH * -1
+  let j MAP_WIDTH * -1
+  let map-size MAP_WIDTH * 2
+  let square 0
+  let flag true
+
+  while [ flag ]
+  [
+    set square read-map-position build-position i j
+
+    ifelse (square = word "" ZOMBIE_SQUARE)
+    [ set flag false ]
+    [
+      set i i + 1
+      if (i = map-size)
+      [set i MAP_WIDTH * -1
+        set j j + 1
+      ]
+    ]
+  ]
+
+  report build-position i j
 end
 
 to-report random-map-corner
@@ -379,10 +418,11 @@ to-report build-plan-for-intention [iintention]
 end
 
 ;;;
-;;;  A colision between robots occured whihe executing the plan
+;;;  A colision between humans occured whihe executing the plan
 ;;;
 to collided
-  set plan build-plan-for-intention intention
+  if (any? humans-on patch-ahead 1)
+  [ set plan build-plan-for-intention intention ]
 end
 
 to update-status [ vision ]
@@ -390,10 +430,20 @@ to update-status [ vision ]
   let y ""
   let patch-content ""
   let position-list ""
+
   foreach sort vision
   [
     ask self [ write-map list [pxcor] of ?1 [pycor] of ?1 [kind] of ?1 ]
   ]
+
+  if (any? turtles-on vision)
+    [
+      foreach (sort humans-on vision)
+      [ write-map build-position [xcor] of ?1 [ycor] of ?1 OCCUPIED ]
+
+      foreach (sort zombies-on vision)
+      [ write-map build-position [xcor] of ?1 [ycor] of ?1 ZOMBIE_SQUARE ]
+    ]
 end
 
 ;;;
@@ -407,6 +457,13 @@ end
 ;;;
 to send-message [ msg ]
   ask humans [ handle-message msg ]
+end
+
+;;;
+;;;  Send a message to other humans
+;;;
+to send-message-to-others [ msg ]
+  ask other humans [ handle-message msg ]
 end
 
 ;;;  Send a message to a specified human
@@ -457,10 +514,15 @@ to-report read-map-position [pos]
 end
 
 to fill-map
-foreach sort patches
-[
-  write-map ( build-position [pxcor] of ?1 [pycor] of ?1 ) [kind] of ?1
-]
+  let patch_type 0
+  foreach sort patches
+  [
+    ifelse ([kind]of ?1 = WALL)
+    [ set patch_type WALL ]
+    [ set patch_type UNKNOWN ]
+    write-map ( build-position [pxcor] of ?1 [pycor] of ?1 ) patch_type
+  ]
+  print-map
 end
 
 ;;;
@@ -496,6 +558,49 @@ to handle-message [msg]
   [
     update-status item 1 msg
   ]
+  if(action = "assignment")
+  [
+    set team item 3 msg
+    set prey item 4 msg
+    write-map item 1 msg HUNTER
+
+    set desire "hunt"
+    set intention build-intention desire item 1 msg item 2 msg
+    set plan build-plan-for-intention intention
+  ]
+end
+
+to-report assign-positions [ zpos ]
+  let surrounding-squares free-adjacent-positions zpos
+  let teamsize length surrounding-squares
+  set team other n-of teamsize humans
+  let team-aux sort team
+  let response 0
+  let target-pos 0
+
+  foreach surroundind-squares
+  [
+    if (distance current-position ?1 < distance current-position target-pos)
+    [
+      set target-pos ?1
+      set response list target-pos (calculate-heading target-pos zpos)
+   ]
+ ]
+
+  set surrounding-squares remove target-pos surrounding-squares
+
+  while [length surrounding-squares > 0 and length team-aux > 0 ]
+  [
+    let aux-human first team-aux
+    let pos1 min-one-of surrounding-squares [ distance aux-human ]
+    show (word "im telling " [who] of aux-human "to hunt" zpos "with me")
+    send-message-to-human ([who] of aux-human) (list "assignment" pos1 (calculate-heading pos1 zpos) team zpos)
+
+    set surrounding-squares remove pos1 surrounding-squares
+    set team-aux butfirst team-aux
+  ]
+
+  report response
 end
 
 
@@ -732,6 +837,21 @@ MAP_WIDTH
 5
 15
 5
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+236
+120
+408
+153
+SIGHT_RANGE
+SIGHT_RANGE
+1
+2 * MAP_WIDTH
+3
 1
 1
 NIL
