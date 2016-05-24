@@ -114,8 +114,12 @@ to setup-turtles
   [
     ;; set human
     ask turtle i [ init-human
-      set xcor xxcor
-      set ycor yycor - i
+      let pos random-map-position
+      ifelse (RANDOM_SPAWNS)
+      [ set xcor item 0 pos
+        set ycor item 1 pos ]
+      [ set xcor xxcor
+        set ycor yycor - ( i mod (MAP_WIDTH * 2 - 1)) ]
       set current-position build-position xcor ycor
       set heading 90
       set size 0.7 ]
@@ -308,7 +312,7 @@ end
 
 to human-reactive
   ifelse ( any? zombies-on patch-ahead 1 )
-  [ kill-zombie zombies-on patch-ahead 1 ]
+  [ kill-zombie-ahead]
   [ human-move-randomly ]
 end
 
@@ -404,6 +408,18 @@ to-report random-map-corner
   [ set rmcj -1 ]
 
   report build-position ((rmci * (MAP_WIDTH - 2)) * random 2) ((rmcj * (MAP_WIDTH - 2)) * random 2)
+end
+
+to-report random-map-position
+  let rmpx (random (MAP_WIDTH * 2 + 1) - MAP_WIDTH)
+  let rmpy (random (MAP_WIDTH * 2 + 1) - MAP_WIDTH)
+  while [any? turtles-on patch rmpx rmpy or [kind] of patch rmpx rmpy = WALL]
+  [
+    set rmpx (random (MAP_WIDTH * 2 + 1) - MAP_WIDTH)
+    set rmpy (random (MAP_WIDTH * 2 + 1) - MAP_WIDTH)
+  ]
+
+  report build-position rmpx rmpy
 end
 
 to-report build-plan-for-intention [iintention]
@@ -564,9 +580,11 @@ to human-move-ahead
   ]
 end
 
-to kill-zombie [ kzzombie ]
-  if (not (kzzombie = nobody))
+to kill-zombie-ahead
+  let kzzombie zombies-on patch-ahead 1
+  if (any? kzzombie)
   [
+    print kzzombie
     let kzzpos build-position first [xcor] of kzzombie first [ycor] of kzzombie
     show kzzpos
     let kzfree-cells free-adjacent-positions kzzpos
@@ -718,8 +736,8 @@ end
 ;;; ------------------------
 ;;;
 to-report zombies-ahead?
-  let ahead (patch-ahead 1)
-  ifelse (zombies-on ahead = nobody)
+  let zhzombies zombies-on patch-ahead 1
+  ifelse (any? zhzombies)
   [ report false ]
   [ report true ]
 end
@@ -892,7 +910,7 @@ SIGHT_RANGE
 SIGHT_RANGE
 1
 2 * MAP_WIDTH
-5
+3
 1
 1
 NIL
@@ -908,6 +926,17 @@ kills-count
 17
 1
 11
+
+SWITCH
+240
+161
+402
+194
+RANDOM_SPAWNS
+RANDOM_SPAWNS
+0
+1
+-1000
 
 @#$#@#$#@
 ## ABSTRACT TYPES
