@@ -308,7 +308,7 @@ end
 
 to human-reactive
   ifelse ( any? zombies-on patch-ahead 1 )
-  [ kill-zombie ]
+  [ kill-zombie zombies-on patch-ahead 1 ]
   [ human-move-randomly ]
 end
 
@@ -349,6 +349,7 @@ to-report BDI-filter
   ] [
     if desire = "hunt" [
       set pos-or find-zombie-position
+      show (word "found the dude at :" pos-or)
       set prey pos-or
       let target-position assign-positions pos-or
       if (target-position = false)
@@ -362,7 +363,6 @@ end
 to-report find-zombie-position
   let fzpi MAP_WIDTH * -1
   let fzpj MAP_WIDTH * -1
-  let fzpmap-size MAP_WIDTH * 2 + 1
   let fzpsquare 0
   let fzpflag true
 
@@ -374,14 +374,16 @@ to-report find-zombie-position
     [ set fzpflag false ]
     [
       set fzpi fzpi + 1
-      if (fzpi = fzpmap-size)
-      [set fzpi MAP_WIDTH * -1
+
+      if (fzpi = MAP_WIDTH)
+      [
+        set fzpi MAP_WIDTH * -1
         set fzpj fzpj + 1
       ]
+
+      if (fzpj = MAP_WIDTH) [report false]
     ]
   ]
-
-
 
   report build-position fzpi fzpj
 end
@@ -420,7 +422,7 @@ to-report build-plan-for-intention [iintention]
     ]
     if get-intention-desire iintention = "hunt"
     [
-      ;todo hunting instructions
+      set new-plan add-instruction-to-plan new-plan build-instruction-hunt
     ]
   ]
 
@@ -562,15 +564,23 @@ to human-move-ahead
   ]
 end
 
-to kill-zombie [zombie]
-  let kzzpos build-position [xcor] of zombie [ycor] of zombie
-  let kzfree-cells free-adjacent-cells kzzpos
-
-  if (empty? kzfree-cells)
+to kill-zombie [ kzzombie ]
+  if (not (kzzombie = nobody))
   [
-    ask zombie [die]
-    set KILLS KILLS + 1
-    spawn-zombies 1
+    let kzzpos build-position first [xcor] of kzzombie first [ycor] of kzzombie
+    show kzzpos
+    let kzfree-cells free-adjacent-positions kzzpos
+
+    if (empty? kzfree-cells)
+    [
+      ask kzzombie [die]
+      set KILLS KILLS + 1
+      hatch-zombies 1 [
+        init-zombie
+        set xcor ( ( -1 * MAP_WIDTH) + (random MAP_WIDTH * 2) )
+        set ycor ( ( -1 * MAP_WIDTH) + (random MAP_WIDTH * 2) )
+      ]
+    ]
   ]
 end
 
@@ -609,7 +619,7 @@ to-report assign-positions [ zpos ]
   set target-pos first surrounding-squares
   set response list target-pos (calculate-heading target-pos zpos)
 
-;  print (word "SURROUNDING-SQUARES:" surrounding-squares)
+  print (word "SURROUNDING-SQUARES:" surrounding-squares)
 
   foreach surrounding-squares
   [
@@ -717,10 +727,10 @@ end
 GRAPHICS-WINDOW
 526
 10
-956
-461
-10
-10
+771
+261
+5
+5
 20.0
 1
 10
@@ -731,10 +741,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--10
-10
--10
-10
+-5
+5
+-5
+5
 1
 1
 1
@@ -867,7 +877,7 @@ MAP_WIDTH
 MAP_WIDTH
 5
 15
-10
+5
 1
 1
 NIL

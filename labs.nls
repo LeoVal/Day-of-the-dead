@@ -405,10 +405,14 @@ to execute-plan-action
     [
       ifelse(position-ahead = get-instruction-value currentInstruction)
         [
-          if (free-cell?)
+          ifelse (free-cell?)
           [
             human-move-ahead
             set plan remove-plan-first-instruction plan ]
+          [
+            write-map position-ahead word "" OCCUPIED
+            set plan build-plan-for-intention intention
+          ]
           ;Else occupied?
         ]
         [ rotate-best-ad get-instruction-value currentInstruction ]
@@ -426,13 +430,14 @@ to execute-plan-action
   [
     set plan remove-plan-first-instruction plan
   ]
-  ifelse(instruction-hunt? currentinstruction)
+  if(instruction-hunt? currentinstruction)
   [
-   if (zombies-ahead?)
-   [ kill-zombie ]
-  ]
-  [
-    set plan build-empty-plan
+   ifelse (zombies-ahead?)
+   [ kill-zombie zombies-on patch-ahead 1 
+     set plan remove-plan-first-instruction plan]
+   [
+     set plan build-empty-plan
+   ]
   ]
   
 end
@@ -444,10 +449,8 @@ end
 
 to rotate-best [rbheading]
   ifelse( 360 - rbheading <= 180)
-  [ show "going right"
-    rotate-right ]
-  [ show "going left"
-    rotate-left ]
+  [ rotate-right ]
+  [ rotate-left ]
 end
 
 ;;;
