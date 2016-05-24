@@ -181,7 +181,6 @@ to-report free-cell?
   let frente (patch-ahead 1)
   let occupied-flag (([kind] of frente != WALL) and (not any? turtles-on frente))
   
-  show (word "cell ahead is free? " occupied)
   report occupied-flag
 end
 
@@ -402,17 +401,12 @@ to execute-plan-action
 
   set currentInstruction get-plan-first-instruction plan
 
-show "ok, lets do this"
-
   ifelse(instruction-find-adjacent-position? currentInstruction)
     [
-      print "IF 'ad' instructions"
       ifelse(position-ahead = get-instruction-value currentInstruction)
         [
-                print "IF ahead = instructions target"
           if (free-cell?)
           [ 
-                  print "ok, lets move"
             human-move-ahead
             set plan remove-plan-first-instruction plan ]
         ]
@@ -459,7 +453,6 @@ to-report intention-succeeded? [iintention]
   [ 
     if(ddesire = "hunt")
     [ 
-      show (word "my prey is on: " prey)
       ifelse(not any? zombies-on patch item 0 prey item 1 prey)
       [ report true ]
       [ report false ]

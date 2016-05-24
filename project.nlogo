@@ -289,6 +289,9 @@ end
 
 to human-loop
 
+  ; Remove zombies from current vision to avoid outdated data
+  forget-zombies
+
   ; Gets input from world, updates map and tells everyone what he saw
   let vision patches in-radius field-of-depth
   update-status vision
@@ -315,14 +318,11 @@ end
 
 to human-BDI
 
-show "bdi"
   ifelse not (empty-plan? plan or intention-succeeded? intention or impossible-intention? intention)
   [
-    show "if"
     execute-plan-action
   ]
   [
-    show "else"
     ;; Check the human's options
     set desire BDI-desire
     set intention BDI-filter
@@ -351,6 +351,8 @@ to-report BDI-filter
       set pos-or find-zombie-position
       set prey pos-or
       let target-position assign-positions pos-or
+      if (target-position = false)
+      [ report ""]
       report build-intention desire item 0 target-position item 1 target-position
     ]
   ]
@@ -358,40 +360,48 @@ to-report BDI-filter
 end
 
 to-report find-zombie-position
-  let i MAP_WIDTH * -1
-  let j MAP_WIDTH * -1
-  let map-size MAP_WIDTH * 2
-  let square 0
-  let flag true
+  let fzpi MAP_WIDTH * -1
+  let fzpj MAP_WIDTH * -1
+  let fzpmap-size MAP_WIDTH * 2 + 1
+  let fzpsquare 0
+  let fzpflag true
 
-  while [ flag ]
+  while [ fzpflag ]
   [
-    set square read-map-position build-position i j
+    set fzpsquare read-map-position build-position fzpi fzpj
 
-    ifelse (square = word "" ZOMBIE_SQUARE)
-    [ set flag false ]
+    ifelse (fzpsquare = word "" ZOMBIE_SQUARE)
+    [ set fzpflag false ]
     [
-      set i i + 1
-      if (i = map-size)
-      [set i MAP_WIDTH * -1
-        set j j + 1
+      set fzpi fzpi + 1
+      if (fzpi = fzpmap-size)
+      [set fzpi MAP_WIDTH * -1
+        set fzpj fzpj + 1
       ]
     ]
   ]
 
-  report build-position i j
+
+
+  report build-position fzpi fzpj
+end
+
+to forget-zombies
+  if (member? (word "" ZOMBIE_SQUARE) world-map)
+[  let index position (word "" ZOMBIE_SQUARE) world-map
+  set world-map replace-item index world-map (word "" UNKNOWN) ]
 end
 
 to-report random-map-corner
-  let i random 2
-  let j random 2
+  let rmci random 2
+  let rmcj random 2
 
-  if (i = 0)
-  [ set i -1 ]
-  if (j = 0)
-  [ set j -1 ]
+  if (rmci = 0)
+  [ set rmci -1 ]
+  if (rmcj = 0)
+  [ set rmcj -1 ]
 
-  report build-position ((i * (MAP_WIDTH - 2)) * random 2) ((j * (MAP_WIDTH - 2)) * random 2)
+  report build-position ((rmci * (MAP_WIDTH - 2)) * random 2) ((rmcj * (MAP_WIDTH - 2)) * random 2)
 end
 
 to-report build-plan-for-intention [iintention]
@@ -433,7 +443,13 @@ to update-status [ vision ]
 
   foreach sort vision
   [
-    ask self [ write-map list [pxcor] of ?1 [pycor] of ?1 [kind] of ?1 ]
+    if ([pxcor] of ?1 = MAP_WIDTH or [pycor] of ?1 = MAP_WIDTH)
+    [ ask ?1 [set vision other vision] ]
+  ]
+
+  foreach sort vision
+  [
+    write-map list [pxcor] of ?1 [pycor] of ?1 [kind] of ?1
   ]
 
   if (any? turtles-on vision)
@@ -554,6 +570,7 @@ end
 ;;; Messages are a list of 2 items
 to handle-message [msg]
   let action item 0 msg
+
   if(action = "update")
   [
     update-status item 1 msg
@@ -578,25 +595,42 @@ to-report assign-positions [ zpos ]
   let response 0
   let target-pos 0
 
-  foreach surroundind-squares
-  [
-    if (distance current-position ?1 < distance current-position target-pos)
-    [
-      set target-pos ?1
-      set response list target-pos (calculate-heading target-pos zpos)
-   ]
- ]
+  if (empty? surrounding-squares)
+  [report false]
 
+  set target-pos first surrounding-squares
+  set response list target-pos (calculate-heading target-pos zpos)
+
+;  print (word "SURROUNDING-SQUARES:" surrounding-squares)
+
+  foreach surrounding-squares
+  [
+    if ((distance patch item 0 ?1 item 1 ?1) < (distance patch item 0 target-pos item 1 target-pos))
+      [
+        set response list target-pos (calculate-heading target-pos zpos)
+      ]
+  ]
   set surrounding-squares remove target-pos surrounding-squares
 
-  while [length surrounding-squares > 0 and length team-aux > 0 ]
+  while [not (empty? surrounding-squares or empty? team-aux) ]
   [
     let aux-human first team-aux
-    let pos1 min-one-of surrounding-squares [ distance aux-human ]
-    show (word "im telling " [who] of aux-human "to hunt" zpos "with me")
-    send-message-to-human ([who] of aux-human) (list "assignment" pos1 (calculate-heading pos1 zpos) team zpos)
 
-    set surrounding-squares remove pos1 surrounding-squares
+    ask aux-human [
+
+      set target-pos first surrounding-squares
+      foreach surrounding-squares
+      [
+        if ((distance patch item 0 ?1 item 1 ?1) < (distance patch item 0 target-pos item 1 target-pos))
+        [
+          set target-pos ?1
+        ]
+      ]
+    ]
+
+    send-message-to-human ([who] of aux-human) (list "assignment" target-pos (calculate-heading target-pos zpos) team zpos)
+
+    set surrounding-squares remove target-pos surrounding-squares
     set team-aux butfirst team-aux
   ]
 
@@ -675,11 +709,11 @@ end
 GRAPHICS-WINDOW
 526
 10
-811
-316
-5
-5
-25.0
+956
+461
+10
+10
+20.0
 1
 10
 1
@@ -689,10 +723,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--5
-5
--5
-5
+-10
+10
+-10
+10
 1
 1
 1
@@ -836,7 +870,7 @@ MAP_WIDTH
 MAP_WIDTH
 5
 15
-5
+10
 1
 1
 NIL
@@ -851,7 +885,7 @@ SIGHT_RANGE
 SIGHT_RANGE
 1
 2 * MAP_WIDTH
-3
+5
 1
 1
 NIL
