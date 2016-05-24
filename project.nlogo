@@ -562,8 +562,16 @@ to human-move-ahead
   ]
 end
 
-to kill-zombie
-  print "TODO kill zombie function here"
+to kill-zombie [zombie]
+  let kzzpos build-position [xcor] of zombie [ycor] of zombie
+  let kzfree-cells free-adjacent-cells kzzpos
+
+  if (empty? kzfree-cells)
+  [
+    ask zombie [die]
+    set KILLS KILLS + 1
+    spawn-zombies 1
+  ]
 end
 
 ;;;  Handle a new received message
