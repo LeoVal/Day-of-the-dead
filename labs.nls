@@ -406,11 +406,12 @@ to execute-plan-action
       ifelse(position-ahead = get-instruction-value currentInstruction)
         [
           if (free-cell?)
-          [ 
+          [
             human-move-ahead
             set plan remove-plan-first-instruction plan ]
+          ;Else occupied?
         ]
-        [ rotate-right ]
+        [ rotate-best-ad get-instruction-value currentInstruction ]
       ]
       [ if(instruction-find-heading? currentInstruction)
         [
@@ -418,7 +419,7 @@ to execute-plan-action
           [
             set plan remove-plan-first-instruction plan 
           ]
-          [ rotate-right ]
+          [ rotate-best get-instruction-value currentInstruction ]
         ]
       ]
   if(instruction-search? currentInstruction)
@@ -434,6 +435,19 @@ to execute-plan-action
     set plan build-empty-plan
   ]
   
+end
+
+to rotate-best-ad [ rbtarget-pos ]
+  let rbtarget-heading calculate-heading current-position rbtarget-pos
+  rotate-best rbtarget-heading
+end
+
+to rotate-best [rbheading]
+  ifelse( 360 - rbheading <= 180)
+  [ show "going right"
+    rotate-right ]
+  [ show "going left"
+    rotate-left ]
 end
 
 ;;;

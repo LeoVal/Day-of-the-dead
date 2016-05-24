@@ -795,17 +795,6 @@ head-count
 1
 11
 
-MONITOR
-142
-283
-226
-328
-Total zombies
-zombie-count
-0
-1
-11
-
 CHOOSER
 67
 68
@@ -890,6 +879,17 @@ SIGHT_RANGE
 1
 NIL
 HORIZONTAL
+
+MONITOR
+146
+282
+203
+327
+Kills
+kills-count
+17
+1
+11
 
 @#$#@#$#@
 ## ABSTRACT TYPES
