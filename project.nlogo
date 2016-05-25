@@ -601,8 +601,9 @@ to kill-zombie-ahead
       [
         hatch-zombies 1 [
           init-zombie
-          set xcor ( ( -1 * MAP_WIDTH) + (random MAP_WIDTH * 2) )
-          set ycor ( ( -1 * MAP_WIDTH) + (random MAP_WIDTH * 2) )
+          let kzapos random-map-position
+          set xcor item 0 kzapos
+          set ycor item 1 kzapos
         ]
       ]
     ]
@@ -828,10 +829,10 @@ NIL
 1
 
 CHOOSER
-70
-282
-209
-327
+50
+279
+223
+324
 Human-Strategy
 Human-Strategy
 "Reactive" "BDI" "Learning"
@@ -839,9 +840,9 @@ Human-Strategy
 
 SLIDER
 50
-166
+171
 222
-199
+204
 HUMAN_INITIAL_COUNT
 HUMAN_INITIAL_COUNT
 4
@@ -861,7 +862,7 @@ ZOMBIE_INITIAL_COUNT
 ZOMBIE_INITIAL_COUNT
 1
 5
-2
+1
 1
 1
 NIL
@@ -899,9 +900,9 @@ HORIZONTAL
 
 SLIDER
 50
-205
+207
 222
-238
+240
 SIGHT_RANGE
 SIGHT_RANGE
 1
@@ -924,13 +925,13 @@ kills-count
 11
 
 SWITCH
-55
+50
 243
-217
+223
 276
 RANDOM_SPAWNS
 RANDOM_SPAWNS
-1
+0
 1
 -1000
 
@@ -1084,15 +1085,15 @@ SWITCH
 237
 RESPAWN
 RESPAWN
-1
+0
 1
 -1000
 
 TEXTBOX
 111
-148
+153
 261
-166
+171
 Humans
 11
 0.0

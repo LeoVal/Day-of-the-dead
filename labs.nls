@@ -464,12 +464,20 @@ to execute-plan-action
     ]
   ]
   
+  
+  if (not empty-plan? plan)
+  [ 
+    if (instruction-find-adjacent-position? get-plan-first-instruction plan)
+    [ turn-to-position item 1 get-plan-first-instruction plan ]
+    if (instruction-find-heading? get-plan-first-instruction plan)
+    [ turn-to-correct-heading item 1 get-plan-first-instruction plan]
+  ]
+  
   ; if at objective clear all ad and h instructions
   if (equal-positions? current-position item 1 intention)
   [
     while [ heading != item 2 intention ]
-    [ show "im at the spot. ill correct the heading now"
-      turn-to-correct-heading item 2 intention ]
+    [ turn-to-correct-heading item 2 intention ]
     
     while [ instruction-find-adjacent-position? currentInstruction or instruction-find-heading? currentInstruction]
     [ set plan remove-plan-first-instruction plan 
