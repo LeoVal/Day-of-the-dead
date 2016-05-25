@@ -16,7 +16,6 @@ globals [
   GROUND
   WALL
   ZOMBIE_SQUARE
-  HUNTER
   OCCUPIED
 
   RESPAWN-TIMER
@@ -33,8 +32,7 @@ to set-globals
   set GROUND 1
   set WALL 2
   set ZOMBIE_SQUARE 3
-  set HUNTER 4
-  set OCCUPIED 5
+  set OCCUPIED 4
 
   ;;; Global variables
   set KILLS 0
@@ -62,7 +60,6 @@ humans-own [
   world-map
   current-position
 
-  team
   prey
 
   desire
@@ -347,18 +344,22 @@ end
 to-report BDI-filter
   let pos-or 0
 
-  ifelse desire = "search"[
+  ifelse desire = "search"
+  [
     set pos-or random-map-corner
-    report build-intention desire build-position item 0 pos-or item 1 pos-or 0
-  ] [
+    report build-intention desire build-position item 0 pos-or item 1 pos-or (random 4 * 90)
+  ]
+  [
     if desire = "hunt" [
-      set team 0
       set pos-or find-zombie-position
       set prey pos-or
-      let target-position assign-positions pos-or
-      if (target-position = false)
-      [ report ""]
-      report build-intention desire item 0 target-position item 1 target-position
+      let assignment assign-positions pos-or
+      if (assignment = false)
+        [ set desire "search"
+          set pos-or random-map-corner
+          report build-intention desire build-position item 0 pos-or item 1 pos-or (random 4 * 90)
+        ]
+      report intention
     ]
   ]
   report build-empty-intention
@@ -440,6 +441,7 @@ to-report build-plan-for-intention [iintention]
     [
       set new-plan add-instruction-to-plan new-plan build-instruction-hunt
     ]
+
   ]
 
   report new-plan
@@ -621,10 +623,7 @@ to handle-message [msg]
   ]
   if(action = "assignment")
   [
-    set team item 3 msg
-    set prey item 4 msg
-    write-map item 1 msg HUNTER
-
+    set prey item 3 msg
     set desire "hunt"
     set intention build-intention desire item 1 msg item 2 msg
     set plan build-plan-for-intention intention
@@ -632,51 +631,45 @@ to handle-message [msg]
 end
 
 to-report assign-positions [ zpos ]
-  let surrounding-squares free-adjacent-positions zpos
-  let teamsize length surrounding-squares
-  set team other n-of teamsize humans
-  let team-aux sort team
-  let response 0
-  let target-pos 0
-
-  if (empty? surrounding-squares)
-  [report false]
-
-  set target-pos first surrounding-squares
-  set response list target-pos (calculate-heading target-pos zpos)
+  let surrounding-squares all-adjacent-positions zpos
 
   foreach surrounding-squares
   [
-    if ((distance patch item 0 ?1 item 1 ?1) < (distance patch item 0 target-pos item 1 target-pos))
-      [
-        set response list target-pos (calculate-heading target-pos zpos)
-      ]
+    if ([kind] of patch-position ?1 = WALL)
+    [ set surrounding-squares remove ?1 surrounding-squares ]
   ]
-  set surrounding-squares remove target-pos surrounding-squares
 
-  while [not (empty? surrounding-squares or empty? team-aux) ]
+  foreach surrounding-squares
   [
-    let aux-human first team-aux
-
-    ask aux-human [
-
-      set target-pos first surrounding-squares
-      foreach surrounding-squares
-      [
-        if ((distance patch item 0 ?1 item 1 ?1) < (distance patch item 0 target-pos item 1 target-pos))
-        [
-          set target-pos ?1
-        ]
-      ]
+    if (any? humans-on patch-position ?1)
+    [
+      let aux-human one-of humans-on patch-position ?1
+      send-message-to-human ([who] of aux-human) (list "assignment" ?1 (calculate-heading ?1 zpos) zpos)
+      set surrounding-squares remove ?1 surrounding-squares
     ]
-
-    send-message-to-human ([who] of aux-human) (list "assignment" target-pos (calculate-heading target-pos zpos) team zpos)
-
-    set surrounding-squares remove target-pos surrounding-squares
-    set team-aux butfirst team-aux
   ]
 
-  report response
+  if (empty? surrounding-squares)
+  [ report false ]
+
+  let team sort n-of (length surrounding-squares - 1) other humans
+
+  foreach but-first surrounding-squares
+  [
+    ;todo take distance into account here, attribute closest square to human
+    let aux-team-member first team
+    send-message-to-human ([who] of aux-team-member) (list "assignment" ?1 (calculate-heading ?1 zpos) zpos)
+    set surrounding-squares remove ?1 surrounding-squares
+    set team but-first team
+  ]
+
+  if (empty? surrounding-squares)
+  [ report false ]
+
+  let a-p-target-pos first surrounding-squares
+  send-message-to-human who (list "assignment" a-p-target-pos (calculate-heading a-p-target-pos zpos) zpos)
+
+  report true
 end
 
 
@@ -713,6 +706,7 @@ to zombie-move-randomly
   ifelse (random 2 = 0) [ rotate-random ]
   [ zombie-move-ahead ]
 end
+
 
 ;;;  Move the zombie 1 step forward. Zombies cant walk on Bunker
 to zombie-move-ahead
@@ -847,7 +841,7 @@ HUMAN_INITIAL_COUNT
 HUMAN_INITIAL_COUNT
 4
 12
-4
+8
 1
 1
 NIL
@@ -877,7 +871,7 @@ TICK_LIMIT
 TICK_LIMIT
 500
 2000
-501
+930
 1
 1
 NIL
@@ -907,7 +901,7 @@ SIGHT_RANGE
 SIGHT_RANGE
 1
 2 * MAP_WIDTH
-3
+10
 1
 1
 NIL
@@ -931,15 +925,15 @@ SWITCH
 276
 RANDOM_SPAWNS
 RANDOM_SPAWNS
-0
+1
 1
 -1000
 
 MONITOR
-684
-66
-785
-111
+717
+88
+990
+133
 human 0's plans
 [plan] of human 0
 17
@@ -947,10 +941,10 @@ human 0's plans
 11
 
 MONITOR
-685
-114
-784
-159
+718
+136
+990
+181
 human 1's plan
 [plan] of human 1
 17
@@ -958,10 +952,10 @@ human 1's plan
 11
 
 MONITOR
-685
-162
-784
-207
+718
+184
+990
+229
 human 2's plan
 [plan] of human 2
 17
@@ -969,10 +963,10 @@ human 2's plan
 11
 
 MONITOR
-684
-212
-783
-257
+717
+234
+988
+279
 human 3's plan
 [plan] of human 3
 17
@@ -980,10 +974,10 @@ human 3's plan
 11
 
 MONITOR
-792
-115
-928
-160
+1003
+140
+1139
+185
 NIL
 [intention] of human 1
 17
@@ -991,10 +985,10 @@ NIL
 11
 
 MONITOR
-792
-165
-928
-210
+1003
+190
+1139
+235
 NIL
 [intention] of human 2
 17
@@ -1002,10 +996,10 @@ NIL
 11
 
 MONITOR
-794
-215
-930
-260
+1005
+240
+1141
+285
 NIL
 [intention] of human 3
 17
@@ -1013,10 +1007,10 @@ NIL
 11
 
 MONITOR
-791
-65
-927
-110
+1002
+90
+1138
+135
 NIL
 [intention] of human 0
 17
@@ -1024,10 +1018,10 @@ NIL
 11
 
 MONITOR
-938
-67
-1009
-112
+1149
+92
+1220
+137
 last-action
 [last-action] of human 0
 17
@@ -1035,10 +1029,10 @@ last-action
 11
 
 MONITOR
-934
-114
-1080
-159
+1145
+139
+1291
+184
 NIL
 [last-action] of human 1
 17
@@ -1046,10 +1040,10 @@ NIL
 11
 
 MONITOR
-932
-162
-1078
-207
+1143
+187
+1289
+232
 NIL
 [last-action] of human 2
 17
@@ -1057,10 +1051,10 @@ NIL
 11
 
 MONITOR
-935
-214
-1081
-259
+1146
+239
+1292
+284
 NIL
 [last-action] of human 3
 17
@@ -1068,12 +1062,12 @@ NIL
 11
 
 MONITOR
-804
-13
-891
-58
+1015
+38
+1102
+83
 zombie pos
-(word \"\" [xcor] of one-of zombies \", \" [ycor] of one-of zombies)
+(word \"\" [xcor] of min-one-of zombies [who] \", \" [ycor] of min-one-of zombies [who])
 17
 1
 11
@@ -1108,6 +1102,17 @@ Zombies\n
 11
 0.0
 1
+
+SWITCH
+276
+241
+389
+274
+RUN_AWAY
+RUN_AWAY
+1
+1
+-1000
 
 @#$#@#$#@
 ## ABSTRACT TYPES

@@ -110,7 +110,7 @@ to-report free-adjacent-positions [pos]
   foreach solution
   [ 
     let square read-map-position ?
-    if (square = (word "" WALL) or square = (word "" OCCUPIED))
+    if (square = (word "" WALL) or square = (word "" ZOMBIE_SQUARE) or square = (word "" OCCUPIED))
     [ set solution remove ? solution ] ]
   
   report solution
@@ -420,6 +420,17 @@ to execute-plan-action
 
   set currentInstruction get-plan-first-instruction plan
 
+  ; if at objective clear all ad and h instructions
+  if (equal-positions? current-position item 1 intention)
+    [
+      set heading item 2 intention
+      
+      while [ instruction-find-adjacent-position? currentInstruction or instruction-find-heading? currentInstruction ]
+      [ set plan remove-plan-first-instruction plan 
+        set currentInstruction get-plan-first-instruction plan ]
+    ]
+
+  ; Ad instruction. this means move to adj position
   ifelse(instruction-find-adjacent-position? currentInstruction)
     [ 
       ifelse(position-ahead = get-instruction-value currentInstruction)
@@ -433,7 +444,9 @@ to execute-plan-action
         ]
         [ turn-to-position get-instruction-value currentInstruction ]
       ]
-      [ if(instruction-find-heading? currentInstruction)
+      [ 
+      ; find heading instruction. this means turn to the right direction
+      ifelse(instruction-find-heading? currentInstruction)
         [
           ifelse(heading = get-instruction-value currentInstruction)
           [
@@ -441,49 +454,34 @@ to execute-plan-action
           ]
           [ turn-to-correct-heading get-instruction-value currentInstruction ]
         ]
+        [
+          ; search instruction. randomly moving to find zombie
+          ifelse(instruction-search? currentInstruction)
+          [
+            set plan remove-plan-first-instruction plan
+          ]
+          [
+          ; hunt instruction. try to kill the zombie here
+              if(instruction-hunt? currentinstruction)
+              [
+                ifelse (zombies-ahead?)
+                [
+                  kill-zombie-ahead 
+                  ifelse (zombies-ahead?)
+                  [ 
+                    set last-action "wait"
+                  ]
+                  [ set plan remove-plan-first-instruction plan ]
+                ]
+                [
+                  if not ( (equal-positions? current-position item 1 intention) and (heading = item 2 intention))
+                  ; reached a hunt instruction and not in the right place so we need to replan
+                  [ set plan build-empty-plan ]
+                ]
+              ]
+          ]
+        ]
       ]
-      
-  if(instruction-search? currentInstruction)
-  [
-    set plan remove-plan-first-instruction plan
-  ]
-  if(instruction-hunt? currentinstruction)
-  [
-    
-    ifelse (zombies-ahead?)
-    [
-      kill-zombie-ahead 
-      ifelse (zombies-ahead?)
-      [ ;zombie didnt die. do nothing, wait for more humans
-      ]
-      [ set plan remove-plan-first-instruction plan ]
-    ]
-    [
-      ; reached a hunt instrtuction and not in the right place so we need to replan
-      set plan build-empty-plan
-    ]
-  ]
-  
-  
-  if (not empty-plan? plan)
-  [ 
-    if (instruction-find-adjacent-position? get-plan-first-instruction plan)
-    [ turn-to-position item 1 get-plan-first-instruction plan ]
-    if (instruction-find-heading? get-plan-first-instruction plan)
-    [ turn-to-correct-heading item 1 get-plan-first-instruction plan]
-  ]
-  
-  ; if at objective clear all ad and h instructions
-  if (equal-positions? current-position item 1 intention)
-  [
-    while [ heading != item 2 intention ]
-    [ turn-to-correct-heading item 2 intention ]
-    
-    while [ instruction-find-adjacent-position? currentInstruction or instruction-find-heading? currentInstruction]
-    [ set plan remove-plan-first-instruction plan 
-      set currentInstruction get-plan-first-instruction plan ]
-  ]
-  
 end
 
 to rotate-best-ad [ rbtarget-pos ]
@@ -532,7 +530,6 @@ end
 
 
 to-report impossible-intention? [iintention]
-
   if(empty-intention? iintention)
     [ report false ]
  
