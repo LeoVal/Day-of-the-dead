@@ -222,7 +222,7 @@ to go
   ]
 
   ;; Check if the goal was achieved, is everyone dead yet?
-  if ticks > TICK_LIMIT or not any? zombies
+  if ticks > TICK_LIMIT or (not any? zombies)
     [ stop ]
 end
 
@@ -354,7 +354,6 @@ to-report BDI-filter
     if desire = "hunt" [
       set team 0
       set pos-or find-zombie-position
-      show (word "found the dude at :" pos-or)
       set prey pos-or
       let target-position assign-positions pos-or
       if (target-position = false)
@@ -751,10 +750,10 @@ to-report zombies-ahead?
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-442
-44
-687
-295
+441
+69
+686
+320
 5
 5
 20.0
@@ -828,32 +827,21 @@ NIL
 NIL
 1
 
-MONITOR
-47
-283
-133
-328
-Total humans
-head-count
-0
-1
-11
-
 CHOOSER
-67
-68
-206
-113
+70
+282
+209
+327
 Human-Strategy
 Human-Strategy
 "Reactive" "BDI" "Learning"
 1
 
 SLIDER
-51
-158
-223
-191
+50
+166
+222
+199
 HUMAN_INITIAL_COUNT
 HUMAN_INITIAL_COUNT
 4
@@ -865,15 +853,15 @@ NIL
 HORIZONTAL
 
 SLIDER
-51
+250
+163
+423
 196
-224
-229
 ZOMBIE_INITIAL_COUNT
 ZOMBIE_INITIAL_COUNT
 1
 5
-1
+2
 1
 1
 NIL
@@ -881,9 +869,9 @@ HORIZONTAL
 
 SLIDER
 51
-120
+68
 223
-153
+101
 TICK_LIMIT
 TICK_LIMIT
 500
@@ -895,10 +883,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-51
-235
-223
-268
+52
+104
+224
+137
 MAP_WIDTH
 MAP_WIDTH
 5
@@ -910,36 +898,36 @@ NIL
 HORIZONTAL
 
 SLIDER
-236
-120
-408
-153
+50
+205
+222
+238
 SIGHT_RANGE
 SIGHT_RANGE
 1
 2 * MAP_WIDTH
-10
+3
 1
 1
 NIL
 HORIZONTAL
 
 MONITOR
-146
-282
-203
-327
-Kills
+289
+78
+377
+123
+Zombies killed
 kills-count
 17
 1
 11
 
 SWITCH
-246
-200
-408
-233
+55
+243
+217
+276
 RANDOM_SPAWNS
 RANDOM_SPAWNS
 1
@@ -1090,15 +1078,35 @@ zombie pos
 11
 
 SWITCH
-272
+276
+204
+388
 237
-384
-270
 RESPAWN
 RESPAWN
-0
+1
 1
 -1000
+
+TEXTBOX
+111
+148
+261
+166
+Humans
+11
+0.0
+1
+
+TEXTBOX
+310
+146
+460
+164
+Zombies\n
+11
+0.0
+1
 
 @#$#@#$#@
 ## ABSTRACT TYPES
