@@ -222,7 +222,7 @@ to go
   ]
 
   ;; Check if the goal was achieved, is everyone dead yet?
-  if ticks > TICK_LIMIT
+  if ticks > TICK_LIMIT or not any? zombies
     [ stop ]
 end
 
@@ -352,6 +352,7 @@ to-report BDI-filter
     report build-intention desire build-position item 0 pos-or item 1 pos-or 0
   ] [
     if desire = "hunt" [
+      set team 0
       set pos-or find-zombie-position
       show (word "found the dude at :" pos-or)
       set prey pos-or
@@ -556,7 +557,6 @@ to fill-map
     [ set patch_type UNKNOWN ]
     write-map ( build-position [pxcor] of ?1 [pycor] of ?1 ) patch_type
   ]
-  print-map
 end
 
 ;;;
@@ -581,28 +581,36 @@ to human-move-ahead
 end
 
 to kill-zombie-ahead
+
+  ; face the zombie. WITH CORRECT PLANNING THIS WONT BE NEEDED!
+  if (any? zombies in-radius 1)
+  [ face one-of zombies in-radius 1 ]
+
   let kzzombie zombies-on patch-ahead 1
+
   if (any? kzzombie)
   [
-    print kzzombie
     let kzzpos build-position first [xcor] of kzzombie first [ycor] of kzzombie
-    show kzzpos
     let kzfree-cells free-adjacent-positions kzzpos
 
     if (empty? kzfree-cells)
     [
       ask kzzombie [die]
       set KILLS KILLS + 1
-      hatch-zombies 1 [
-        init-zombie
-        set xcor ( ( -1 * MAP_WIDTH) + (random MAP_WIDTH * 2) )
-        set ycor ( ( -1 * MAP_WIDTH) + (random MAP_WIDTH * 2) )
+
+      if (RESPAWN)
+      [
+        hatch-zombies 1 [
+          init-zombie
+          set xcor ( ( -1 * MAP_WIDTH) + (random MAP_WIDTH * 2) )
+          set ycor ( ( -1 * MAP_WIDTH) + (random MAP_WIDTH * 2) )
+        ]
       ]
     ]
   ]
 end
 
-;;;  Handle a new received message
+;;; Handle a new received message
 ;;; Messages are a list of 2 items
 to handle-message [msg]
   let action item 0 msg
@@ -636,8 +644,6 @@ to-report assign-positions [ zpos ]
 
   set target-pos first surrounding-squares
   set response list target-pos (calculate-heading target-pos zpos)
-
-  print (word "SURROUNDING-SQUARES:" surrounding-squares)
 
   foreach surrounding-squares
   [
@@ -683,6 +689,7 @@ end
 ;;;
 ;;;  =================================================================
 to init-zombie
+  set size 0.7
   set color black
   set heading 0
   set xcor random MAP_WIDTH
@@ -712,7 +719,8 @@ to zombie-move-ahead
   let ahead (patch-ahead 1)
   ;; check if the cell is free
   if ([kind] of ahead != WALL and not any? turtles-on patch-ahead 1)
-  [ fd 1 ]
+  [ fd 1
+    set last-action "move-ahead"]
 end
 
 ;;;
@@ -738,15 +746,15 @@ end
 to-report zombies-ahead?
   let zhzombies zombies-on patch-ahead 1
   ifelse (any? zhzombies)
-  [ report false ]
   [ report true ]
+  [ report false ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-526
-10
-771
-261
+442
+44
+687
+295
 5
 5
 20.0
@@ -910,7 +918,7 @@ SIGHT_RANGE
 SIGHT_RANGE
 1
 2 * MAP_WIDTH
-3
+10
 1
 1
 NIL
@@ -928,12 +936,166 @@ kills-count
 11
 
 SWITCH
-240
-161
-402
-194
+246
+200
+408
+233
 RANDOM_SPAWNS
 RANDOM_SPAWNS
+1
+1
+-1000
+
+MONITOR
+684
+66
+785
+111
+human 0's plans
+[plan] of human 0
+17
+1
+11
+
+MONITOR
+685
+114
+784
+159
+human 1's plan
+[plan] of human 1
+17
+1
+11
+
+MONITOR
+685
+162
+784
+207
+human 2's plan
+[plan] of human 2
+17
+1
+11
+
+MONITOR
+684
+212
+783
+257
+human 3's plan
+[plan] of human 3
+17
+1
+11
+
+MONITOR
+792
+115
+928
+160
+NIL
+[intention] of human 1
+17
+1
+11
+
+MONITOR
+792
+165
+928
+210
+NIL
+[intention] of human 2
+17
+1
+11
+
+MONITOR
+794
+215
+930
+260
+NIL
+[intention] of human 3
+17
+1
+11
+
+MONITOR
+791
+65
+927
+110
+NIL
+[intention] of human 0
+17
+1
+11
+
+MONITOR
+938
+67
+1009
+112
+last-action
+[last-action] of human 0
+17
+1
+11
+
+MONITOR
+934
+114
+1080
+159
+NIL
+[last-action] of human 1
+17
+1
+11
+
+MONITOR
+932
+162
+1078
+207
+NIL
+[last-action] of human 2
+17
+1
+11
+
+MONITOR
+935
+214
+1081
+259
+NIL
+[last-action] of human 3
+17
+1
+11
+
+MONITOR
+804
+13
+891
+58
+zombie pos
+(word \"\" [xcor] of one-of zombies \", \" [ycor] of one-of zombies)
+17
+1
+11
+
+SWITCH
+272
+237
+384
+270
+RESPAWN
+RESPAWN
 0
 1
 -1000

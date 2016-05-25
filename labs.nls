@@ -105,26 +105,7 @@ end
 
 
 to-report free-adjacent-positions [pos]
-  let solution 0
-  let x 0
-  let y 0
-
-  set x item 0 pos
-  set y item 1 pos
-
-  set solution []
-
-  if (not (y <= (- MAP_WIDTH)))
-    [ set solution fput (list x (y - 1)) solution ]
-
-  if (not (y >= MAP_WIDTH))
-    [ set solution fput (list x (y + 1)) solution ]
-
-  if (not (x <= (- MAP_WIDTH)))
-    [ set solution fput (list (x - 1) y) solution ]
-
-  if (not (x >= MAP_WIDTH))
-    [ set solution fput (list (x + 1) y) solution ]
+  let solution all-adjacent-positions pos
 
   foreach solution
   [ 
@@ -133,6 +114,32 @@ to-report free-adjacent-positions [pos]
     [ set solution remove ? solution ] ]
   
   report solution
+end
+
+to-report all-adjacent-positions [pos]
+  let ssolution 0
+  let x 0
+  let y 0
+
+  set x item 0 pos
+  set y item 1 pos
+
+  set ssolution []
+
+  if (not (y <= (- MAP_WIDTH)))
+    [ set ssolution fput (list x (y - 1)) ssolution ]
+
+  if (not (y >= MAP_WIDTH))
+    [ set ssolution fput (list x (y + 1)) ssolution ]
+
+  if (not (x <= (- MAP_WIDTH)))
+    [ set ssolution fput (list (x - 1) y) ssolution ]
+
+  if (not (x >= MAP_WIDTH))
+    [ set ssolution fput (list (x + 1) y) ssolution ]
+
+report ssolution
+
 end
 
 to print-map
@@ -387,6 +394,18 @@ to-report position-ahead
     ]
 end
 
+to-report patch-position [pos]
+  report patch item 0 pos item 1 pos
+end
+
+to turn-to-position [ pos ]
+  face patch-position pos
+end
+
+to turn-to-correct-heading [ hheading ]
+  set heading hheading
+end
+
 ;;;
 ;;; ----------------------------
 ;;;  Plan execution procedures
@@ -402,7 +421,7 @@ to execute-plan-action
   set currentInstruction get-plan-first-instruction plan
 
   ifelse(instruction-find-adjacent-position? currentInstruction)
-    [
+    [ 
       ifelse(position-ahead = get-instruction-value currentInstruction)
         [
           ifelse (free-cell?)
@@ -410,12 +429,9 @@ to execute-plan-action
             human-move-ahead
             set plan remove-plan-first-instruction plan
           ]
-          [
-            write-map position-ahead word "" OCCUPIED
-            set plan build-plan-for-intention intention
-          ]
+          [ set plan build-plan-for-intention intention ]
         ]
-        [ rotate-best-ad get-instruction-value currentInstruction ]
+        [ turn-to-position get-instruction-value currentInstruction ]
       ]
       [ if(instruction-find-heading? currentInstruction)
         [
@@ -423,23 +439,41 @@ to execute-plan-action
           [
             set plan remove-plan-first-instruction plan 
           ]
-          [ rotate-best get-instruction-value currentInstruction ]
+          [ turn-to-correct-heading get-instruction-value currentInstruction ]
         ]
       ]
+      
   if(instruction-search? currentInstruction)
   [
     set plan remove-plan-first-instruction plan
   ]
   if(instruction-hunt? currentinstruction)
   [
-   if (zombies-ahead?)
-   [
-     show "IMA TRY NOW"
-     kill-zombie-ahead 
-     ifelse (zombies-ahead?)
-     [ ;zombie didnt die. do nothing
-     ] [ set plan remove-plan-first-instruction plan ]
-   ]
+    
+    ifelse (zombies-ahead?)
+    [
+      kill-zombie-ahead 
+      ifelse (zombies-ahead?)
+      [ ;zombie didnt die. do nothing, wait for more humans
+      ]
+      [ set plan remove-plan-first-instruction plan ]
+    ]
+    [
+      ; reached a hunt instrtuction and not in the right place so we need to replan
+      set plan build-empty-plan
+    ]
+  ]
+  
+  ; if at objective clear all ad and h instructions
+  if (equal-positions? current-position item 1 intention)
+  [
+    while [ heading != item 2 intention ]
+    [ show "im at the spot. ill correct the heading now"
+      turn-to-correct-heading item 2 intention ]
+    
+    while [ instruction-find-adjacent-position? currentInstruction or instruction-find-heading? currentInstruction]
+    [ set plan remove-plan-first-instruction plan 
+      set currentInstruction get-plan-first-instruction plan ]
   ]
   
 end
@@ -462,20 +496,26 @@ to-report intention-succeeded? [iintention]
   let ddesire 0
   let target-zombie 0
   let iiposition item 1 iintention
+  let iiheading item 2 iintention
 
   if(empty-intention? iintention)
     [ report false ]
 
   set ddesire get-intention-desire iintention
-  ifelse(ddesire = "search")
+  if (ddesire = "search")
   [ report (equal-positions? current-position iiposition) or (member? word "" ZOMBIE_SQUARE world-map) ]
+
+  if(ddesire = "hunt")
   [ 
-    if(ddesire = "hunt")
-    [ 
+    ifelse ((equal-positions? current-position iiposition) and (heading = iiheading))
+    [
       ifelse(not any? zombies-on patch item 0 prey item 1 prey)
       [ report true ]
       [ report false ]
     ]
+    [
+      report false
+    ]     
   ]
 
   report false
@@ -487,10 +527,12 @@ to-report impossible-intention? [iintention]
 
   if(empty-intention? iintention)
     [ report false ]
+ 
 
   if (item 0 iintention = "hunt") ;TODO. isto devia usar o mapa interno
-  [  if (not any? zombies-on patch item 0 item 1 iintention item 1 item 1 iintention)
-    [ report false ]
+  [  
+    if (not any? zombies-on patch item 0 prey item 1 prey)
+    [ report true ]
   ]
   
   report false
