@@ -358,15 +358,20 @@ to human-loop
 
 end
 
+;;;
+;;; Reactive Architecture
+;;;
+
 to human-reactive
   ifelse ( any? zombies-on patch-ahead 1 )
   [ kill-zombie-ahead]
   [ human-move-randomly ]
 end
 
-to human-learning
-  ;TODO human learning algorithm here
-end
+
+;;;
+;;; BDI Architecture
+;;;
 
 to human-BDI
 
@@ -416,34 +421,135 @@ to-report BDI-filter
   report build-empty-intention
 end
 
-to-report find-zombie-position
-  let fzpi MAP_WIDTH * -1
-  let fzpj MAP_WIDTH * -1
-  let fzpsquare 0
-  let fzpflag true
+to-report build-plan-for-intention [iintention]
+  let new-plan 0
+  set new-plan build-empty-plan
 
-  while [ fzpflag ]
+  if  not empty-intention? iintention
   [
-    set fzpsquare read-map-position build-position fzpi fzpj
+    set new-plan build-path-plan current-position item 1 iintention
+    set new-plan add-instruction-to-plan new-plan build-instruction-find-heading item 2 iintention
 
-    ifelse (fzpsquare = word "" ZOMBIE_SQUARE)
-    [ set fzpflag false ]
+    if get-intention-desire iintention = "search"
     [
-      set fzpi fzpi + 1
-
-      if (fzpi = MAP_WIDTH)
-      [
-        set fzpi MAP_WIDTH * -1
-        set fzpj fzpj + 1
-      ]
-
-      if (fzpj = MAP_WIDTH) [report false]
+      set new-plan add-instruction-to-plan new-plan build-instruction-search
+    ]
+    if get-intention-desire iintention = "hunt"
+    [
+      set new-plan add-instruction-to-plan new-plan build-instruction-hunt
     ]
   ]
-
-  report build-position fzpi fzpj
+  report new-plan
 end
 
+;;;
+;;; Learning Architecture
+;;;
+
+to human-learning
+  ;TODO human learning algorithm here
+end
+
+;;;
+;;; ----------------------------
+;;;    Comunication procedures
+;;; ----------------------------
+;;;
+
+;;;
+;;;  Send a message to all humans
+;;;
+to send-message [ msg ]
+  ask humans [ handle-message msg ]
+end
+
+;;;
+;;;  Send a message to other humans
+;;;
+to send-message-to-others [ msg ]
+  ask other humans [ handle-message msg ]
+end
+
+;;;  Send a message to a specified human
+to send-message-to-human [id-human msg]
+  ask turtle id-human [handle-message msg]
+end
+
+;;; Handle a new received message
+to handle-message [msg]
+  let action item 0 msg
+
+  if(action = "update")
+  [
+    update-status item 1 msg
+  ]
+  if(action = "assignment")
+  [
+    set prey item 3 msg
+    set desire "hunt"
+    set intention build-intention desire item 1 msg item 2 msg
+    set plan build-plan-for-intention intention
+  ]
+end
+
+;;;
+;;;  =================================================================
+;;;
+;;;      MAP
+;;;
+;;;  =================================================================
+
+;;;  Build a new map with UNKNOWN in all positions
+to-report build-new-map
+  let m 0
+
+  set m ""
+
+  let mapsize (MAP_WIDTH * 2) + 1
+
+  repeat mapsize * mapsize
+    [ set m word m UNKNOWN ]
+
+  report m
+end
+
+;;; Writhes in the internal map given mtype for given position
+to write-map [pos mtype]
+  let x 0
+  let y 0
+
+  set x item 0 pos
+  set y item 1 pos
+
+  set world-map replace-item ((x + MAP_WIDTH) + (y + MAP_WIDTH) * (MAP_WIDTH * 2 + 1)) world-map (word "" mtype)
+end
+
+;;; Returns the internal map's state for given position
+to-report read-map-position [pos]
+  let x 0
+  let y 0
+  let mapsize 0
+
+  set x item 0 pos
+  set y item 1 pos
+  set mapsize (2 * MAP_WIDTH) + 1
+
+  report item ((x + MAP_WIDTH) + (y + MAP_WIDTH) * mapsize) world-map
+end
+
+;;; Initializes internal map with walls and Unknown
+to fill-map
+  let patch_type 0
+  foreach sort patches
+  [
+    ifelse ([kind]of ?1 = WALL)
+    [ set patch_type WALL ]
+    [ set patch_type UNKNOWN ]
+    write-map ( build-position [pxcor] of ?1 [pycor] of ?1 ) patch_type
+  ]
+end
+
+;;; Removes all zombies from internal map
 to forget-zombies
   if (member? (word "" ZOMBIE_SQUARE) world-map)
 [  let index position (word "" ZOMBIE_SQUARE) world-map
@@ -474,213 +580,9 @@ to-report random-map-position
   report build-position rmpx rmpy
 end
 
-to-report build-plan-for-intention [iintention]
-  let new-plan 0
-
-  set new-plan build-empty-plan
-
-  if  not empty-intention? iintention
-  [
-    set new-plan build-path-plan current-position item 1 iintention
-    set new-plan add-instruction-to-plan new-plan build-instruction-find-heading item 2 iintention
-
-    if get-intention-desire iintention = "search"
-    [
-      set new-plan add-instruction-to-plan new-plan build-instruction-search
-    ]
-    if get-intention-desire iintention = "hunt"
-    [
-      set new-plan add-instruction-to-plan new-plan build-instruction-hunt
-    ]
-
-  ]
-
-  report new-plan
-end
-
 ;;;
-;;;  A colision between humans occured whihe executing the plan
+;;; Distributes adjacent positions to other humans
 ;;;
-to collided
-  if (any? humans-on patch-ahead 1)
-  [ set plan build-plan-for-intention intention ]
-end
-
-to update-status [ vision ]
-  let x ""
-  let y ""
-  let patch-content ""
-  let position-list ""
-
-  foreach sort vision
-  [
-    if ([pxcor] of ?1 = MAP_WIDTH or [pycor] of ?1 = MAP_WIDTH)
-    [ ask ?1 [set vision other vision] ]
-  ]
-
-  foreach sort vision
-  [
-    write-map list [pxcor] of ?1 [pycor] of ?1 [kind] of ?1
-  ]
-
-  if (any? turtles-on vision)
-    [
-      foreach (sort humans-on vision)
-      [ write-map build-position [xcor] of ?1 [ycor] of ?1 OCCUPIED ]
-
-      foreach (sort zombies-on vision)
-      [ write-map build-position [xcor] of ?1 [ycor] of ?1 ZOMBIE_SQUARE ]
-    ]
-end
-
-;;;
-;;; ----------------------------
-;;;    Comunication procedures
-;;; ----------------------------
-;;;
-
-;;;
-;;;  Send a message to all humans
-;;;
-to send-message [ msg ]
-  ask humans [ handle-message msg ]
-end
-
-;;;
-;;;  Send a message to other humans
-;;;
-to send-message-to-others [ msg ]
-  ask other humans [ handle-message msg ]
-end
-
-;;;  Send a message to a specified human
-to send-message-to-human [id-human msg]
-  ask turtle id-human [handle-message msg]
-end
-;;;
-;;;  =================================================================
-;;;
-;;;      MAP
-;;;
-;;;  =================================================================
-
-;;;  Build a new map with UNKNOWN in all positions
-to-report build-new-map
-  let m 0
-
-  set m ""
-
-  let mapsize (MAP_WIDTH * 2) + 1
-
-  repeat mapsize * mapsize
-    [ set m word m UNKNOWN ]
-
-  report m
-end
-
-to write-map [pos mtype]
-  let x 0
-  let y 0
-
-  set x item 0 pos
-  set y item 1 pos
-
-  set world-map replace-item ((x + MAP_WIDTH) + (y + MAP_WIDTH) * (MAP_WIDTH * 2 + 1)) world-map (word "" mtype)
-end
-
-to-report read-map-position [pos]
-  let x 0
-  let y 0
-  let mapsize 0
-
-  set x item 0 pos
-  set y item 1 pos
-  set mapsize (2 * MAP_WIDTH) + 1
-
-  report item ((x + MAP_WIDTH) + (y + MAP_WIDTH) * mapsize) world-map
-end
-
-to fill-map
-  let patch_type 0
-  foreach sort patches
-  [
-    ifelse ([kind]of ?1 = WALL)
-    [ set patch_type WALL ]
-    [ set patch_type UNKNOWN ]
-    write-map ( build-position [pxcor] of ?1 [pycor] of ?1 ) patch_type
-  ]
-end
-
-;;;
-;;;   Actuators
-;;;
-
-; faces a random direction and moves ahead
-to human-move-randomly
-  ifelse (random 2 = 0) [ rotate-random ]
-  [human-move-ahead]
-end
-
-; moves 1 patch ahead. cant walk into walls
-to human-move-ahead
-  let ahead (patch-ahead 1)
-  ;; check if the cell is free
-  if (free-cell?)
-  [ fd 1
-    set current-position position-ahead
-    set last-action "move-ahead"
-  ]
-end
-
-to kill-zombie-ahead
-
-  ; face the zombie. WITH CORRECT PLANNING THIS WONT BE NEEDED!
-  if (any? zombies in-radius 1)
-  [ face one-of zombies in-radius 1 ]
-
-  let kzzombie zombies-on patch-ahead 1
-
-  if (any? kzzombie)
-  [
-    let kzzpos build-position first [xcor] of kzzombie first [ycor] of kzzombie
-    let kzfree-cells free-adjacent-positions kzzpos
-
-    if (empty? kzfree-cells)
-    [
-      ask kzzombie [die]
-      set KILLS KILLS + 1
-
-      if (RESPAWN)
-      [
-        hatch-zombies 1 [
-          init-zombie
-          let kzapos random-map-position
-          set xcor item 0 kzapos
-          set ycor item 1 kzapos
-        ]
-      ]
-    ]
-  ]
-end
-
-;;; Handle a new received message
-;;; Messages are a list of 2 items
-to handle-message [msg]
-  let action item 0 msg
-
-  if(action = "update")
-  [
-    update-status item 1 msg
-  ]
-  if(action = "assignment")
-  [
-    set prey item 3 msg
-    set desire "hunt"
-    set intention build-intention desire item 1 msg item 2 msg
-    set plan build-plan-for-intention intention
-  ]
-end
-
 to-report assign-positions [ zpos ]
   let surrounding-squares all-adjacent-positions zpos
 
@@ -723,6 +625,40 @@ to-report assign-positions [ zpos ]
   report true
 end
 
+;;;
+;;;  A colision between humans occured whihe executing the plan
+;;;
+to collided
+  if (any? humans-on patch-ahead 1)
+  [ set plan build-plan-for-intention intention ]
+end
+
+to update-status [ vision ]
+  let x ""
+  let y ""
+  let patch-content ""
+  let position-list ""
+
+  foreach sort vision
+  [
+    if ([pxcor] of ?1 = MAP_WIDTH or [pycor] of ?1 = MAP_WIDTH)
+    [ ask ?1 [set vision other vision] ]
+  ]
+
+  foreach sort vision
+  [
+    write-map list [pxcor] of ?1 [pycor] of ?1 [kind] of ?1
+  ]
+
+  if (any? turtles-on vision)
+    [
+      foreach (sort humans-on vision)
+      [ write-map build-position [xcor] of ?1 [ycor] of ?1 OCCUPIED ]
+
+      foreach (sort zombies-on vision)
+      [ write-map build-position [xcor] of ?1 [ycor] of ?1 ZOMBIE_SQUARE ]
+    ]
+end
 
 ;;;
 ;;;  =================================================================
@@ -745,12 +681,64 @@ to zombie-loop
 end
 
 ;;;
-;;;   Sensors
+;;; ------------------------
+;;;  Actuators
+;;; ------------------------
 ;;;
 
-;;;
-;;;   Actuators
-;;;
+;;; Human actuators
+
+
+; faces a random direction or moves ahead
+to human-move-randomly
+  ifelse (random 2 = 0) [ rotate-random ]
+  [human-move-ahead]
+end
+
+; moves 1 patch ahead. cant walk into walls
+to human-move-ahead
+  let ahead (patch-ahead 1)
+  ;; check if the cell is free
+  if (free-cell?)
+  [ fd 1
+    set current-position position-ahead
+    set last-action "move-ahead"
+  ]
+end
+
+; Kills the zombie right ahead. Fails if none ahead
+to kill-zombie-ahead
+
+  ; face the zombie. WITH CORRECT PLANNING THIS WONT BE NEEDED! TODO
+  if (any? zombies in-radius 1)
+  [ face one-of zombies in-radius 1 ]
+
+  let kzzombie zombies-on patch-ahead 1
+
+  if (any? kzzombie)
+  [
+    let kzzpos build-position first [xcor] of kzzombie first [ycor] of kzzombie
+    let kzfree-cells free-adjacent-positions kzzpos
+
+    if (empty? kzfree-cells)
+    [
+      ask kzzombie [die]
+      set KILLS KILLS + 1
+
+      if (RESPAWN)
+      [
+        hatch-zombies 1 [
+          init-zombie
+          let kzapos random-map-position
+          set xcor item 0 kzapos
+          set ycor item 1 kzapos
+        ]
+      ]
+    ]
+  ]
+end
+
+;;; Zombie actuators
 
 ; faces a random direction and goes ahead
 to zombie-move-randomly
@@ -768,11 +756,7 @@ to zombie-move-ahead
     set last-action "move-ahead"]
 end
 
-;;;
-;;; ------------------------
-;;;  Actuators
-;;; ------------------------
-;;;
+;;; General actuators
 
 ;;;
 ;;;  Rotate turtle to a random direction
@@ -788,6 +772,39 @@ end
 ;;;   Sensors
 ;;; ------------------------
 ;;;
+
+;;; Human sensors
+
+;;; Find the position for a zombie in the internal map. False if there is none
+to-report find-zombie-position
+  let fzpi MAP_WIDTH * -1
+  let fzpj MAP_WIDTH * -1
+  let fzpsquare 0
+  let fzpflag true
+
+  while [ fzpflag ]
+  [
+    set fzpsquare read-map-position build-position fzpi fzpj
+
+    ifelse (fzpsquare = word "" ZOMBIE_SQUARE)
+    [ set fzpflag false ]
+    [
+      set fzpi fzpi + 1
+
+      if (fzpi = MAP_WIDTH)
+      [
+        set fzpi MAP_WIDTH * -1
+        set fzpj fzpj + 1
+      ]
+
+      if (fzpj = MAP_WIDTH) [report false]
+    ]
+  ]
+  report build-position fzpi fzpj
+end
+
+
+;;; Reports true if there is a zombie ahead
 to-report zombies-ahead?
   let zhzombies zombies-on patch-ahead 1
   ifelse (any? zhzombies)
