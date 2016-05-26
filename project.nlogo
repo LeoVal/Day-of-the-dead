@@ -18,9 +18,9 @@ globals [
   ZOMBIE_SQUARE
   OCCUPIED
 
-  RESPAWN-TIMER
-  ZOMBIE-RESPAWN-TIMER
   KILLS
+  EPISODES
+  ORIGINAL_POSITIONS
 ]
 
 ;;;
@@ -36,9 +36,8 @@ to set-globals
 
   ;;; Global variables
   set KILLS 0
-  set RESPAWN-TIMER 200
   set Human-Strategy "BDI"
-  set ZOMBIE-RESPAWN-TIMER RESPAWN-TIMER
+  set ORIGINAL_POSITIONS []
 end
 
 ;;;
@@ -90,6 +89,7 @@ to reset
   set-globals
   setup-patches
   setup-turtles
+  setup-obstacles
   init-agents
   reset-ticks
 end
@@ -103,8 +103,8 @@ to setup-turtles
   let xxcor (MAP_WIDTH * -1) + 1
   let yycor MAP_WIDTH - 1
 
-  set-default-shape humans "arrow"
-  set-default-shape zombies "arrow"
+  set-default-shape humans "person"
+  set-default-shape zombies "person"
 
   create-humans human-count
   while [ i < human-count ]
@@ -119,7 +119,9 @@ to setup-turtles
         set ycor yycor - ( i mod (MAP_WIDTH * 2 - 1)) ]
       set current-position build-position xcor ycor
       set heading 90
-      set size 0.7 ]
+      set size 1
+      set ORIGINAL_POSITIONS lput build-position [xcor] of human i [ycor] of human i ORIGINAL_POSITIONS
+      ]
     set i i + 1
   ]
 
@@ -163,6 +165,24 @@ to setup-patches
   ]
 end
 
+to setup-obstacles
+    ; Build obstacles
+  if (OBSTACLES)
+  [
+    let nobstacles 5 + random (2 * MAP_WIDTH)
+
+    while [ nobstacles >= 0 ]
+    [
+      let random-position random-map-position
+      ask patch item 0 random-position item 1 random-position
+        [ set kind WALL
+          set pcolor black ]
+        set nobstacles nobstacles - 1
+    ]
+  ]
+end
+
+
 to build-vertical-wall [ ii ]
   let coord 0
   let k 0
@@ -202,6 +222,10 @@ to-report kills-count
   report KILLS
 end
 
+to-report episodes-count
+  report EPISODES
+end
+
 ;;;
 ;;;  Step up the simulation
 ;;;
@@ -219,7 +243,34 @@ to go
   ]
 
   ;; Check if the goal was achieved, is everyone dead yet?
-  if ticks > TICK_LIMIT or (not any? zombies)
+  if (not any? zombies)
+    [
+      ifelse (not EPISODIC)
+      [ stop ]
+      [
+         ; reset the humans coord
+         let gi 0
+         foreach ORIGINAL_POSITIONS
+         [
+           ask human gi [
+             set current-position ?1
+             set xcor item 0 ?1
+             set ycor item 1 ?1
+             set heading 90
+             set desire 0
+             set intention 0
+             set plan []
+             set last-action ""
+             set prey 0
+           ]
+           set gi gi + 1
+         ]
+         ; spawn zombies again
+         spawn-zombies ZOMBIE_INITIAL_COUNT
+      ]
+    ]
+
+  if ticks >= TICK_LIMIT
     [ stop ]
 end
 
@@ -414,7 +465,7 @@ end
 to-report random-map-position
   let rmpx (random (MAP_WIDTH * 2 + 1) - MAP_WIDTH)
   let rmpy (random (MAP_WIDTH * 2 + 1) - MAP_WIDTH)
-  while [any? turtles-on patch rmpx rmpy or [kind] of patch rmpx rmpy = WALL]
+  while [ any? turtles-on patch rmpx rmpy or [kind] of patch rmpx rmpy = WALL ]
   [
     set rmpx (random (MAP_WIDTH * 2 + 1) - MAP_WIDTH)
     set rmpy (random (MAP_WIDTH * 2 + 1) - MAP_WIDTH)
@@ -682,7 +733,7 @@ end
 ;;;
 ;;;  =================================================================
 to init-zombie
-  set size 0.7
+  set size 1
   set color black
   set heading 0
   set xcor random MAP_WIDTH
@@ -747,10 +798,10 @@ end
 GRAPHICS-WINDOW
 441
 69
-686
-320
-5
-5
+751
+400
+7
+7
 20.0
 1
 10
@@ -761,10 +812,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--5
-5
--5
-5
+-7
+7
+-7
+7
 1
 1
 1
@@ -772,9 +823,9 @@ ticks
 30.0
 
 BUTTON
-29
+124
 26
-94
+189
 59
 NIL
 Reset
@@ -789,9 +840,9 @@ NIL
 1
 
 BUTTON
-99
+194
 26
-168
+263
 59
 Run
 go
@@ -806,9 +857,9 @@ NIL
 1
 
 BUTTON
-173
+268
 26
-241
+336
 59
 Step
 go
@@ -823,35 +874,35 @@ NIL
 1
 
 CHOOSER
-50
-279
-223
-324
+54
+312
+227
+357
 Human-Strategy
 Human-Strategy
 "Reactive" "BDI" "Learning"
 1
 
 SLIDER
-50
-171
-222
+54
 204
+226
+237
 HUMAN_INITIAL_COUNT
 HUMAN_INITIAL_COUNT
 4
 12
-8
+4
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-250
-163
-423
-196
+252
+205
+425
+238
 ZOMBIE_INITIAL_COUNT
 ZOMBIE_INITIAL_COUNT
 1
@@ -863,55 +914,55 @@ NIL
 HORIZONTAL
 
 SLIDER
-51
-68
-223
+55
 101
+227
+134
 TICK_LIMIT
 TICK_LIMIT
 500
 2000
-930
+1035
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-52
-104
-224
-137
+231
+101
+403
+134
 MAP_WIDTH
 MAP_WIDTH
 5
 15
-5
+7
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-50
-207
-222
+54
 240
+226
+273
 SIGHT_RANGE
 SIGHT_RANGE
 1
 2 * MAP_WIDTH
-10
+3
 1
 1
 NIL
 HORIZONTAL
 
 MONITOR
-289
-78
-377
-123
+506
+21
+594
+66
 Zombies killed
 kills-count
 17
@@ -919,164 +970,21 @@ kills-count
 11
 
 SWITCH
-50
-243
-223
+54
 276
+227
+309
 RANDOM_SPAWNS
 RANDOM_SPAWNS
 1
 1
 -1000
 
-MONITOR
-717
-88
-990
-133
-human 0's plans
-[plan] of human 0
-17
-1
-11
-
-MONITOR
-718
-136
-990
-181
-human 1's plan
-[plan] of human 1
-17
-1
-11
-
-MONITOR
-718
-184
-990
-229
-human 2's plan
-[plan] of human 2
-17
-1
-11
-
-MONITOR
-717
-234
-988
-279
-human 3's plan
-[plan] of human 3
-17
-1
-11
-
-MONITOR
-1003
-140
-1139
-185
-NIL
-[intention] of human 1
-17
-1
-11
-
-MONITOR
-1003
-190
-1139
-235
-NIL
-[intention] of human 2
-17
-1
-11
-
-MONITOR
-1005
-240
-1141
-285
-NIL
-[intention] of human 3
-17
-1
-11
-
-MONITOR
-1002
-90
-1138
-135
-NIL
-[intention] of human 0
-17
-1
-11
-
-MONITOR
-1149
-92
-1220
-137
-last-action
-[last-action] of human 0
-17
-1
-11
-
-MONITOR
-1145
-139
-1291
-184
-NIL
-[last-action] of human 1
-17
-1
-11
-
-MONITOR
-1143
-187
-1289
-232
-NIL
-[last-action] of human 2
-17
-1
-11
-
-MONITOR
-1146
-239
-1292
-284
-NIL
-[last-action] of human 3
-17
-1
-11
-
-MONITOR
-1015
-38
-1102
-83
-zombie pos
-(word \"\" [xcor] of min-one-of zombies [who] \", \" [ycor] of min-one-of zombies [who])
-17
-1
-11
-
 SWITCH
-276
-204
-388
-237
+278
+246
+390
+279
 RESPAWN
 RESPAWN
 0
@@ -1084,35 +992,78 @@ RESPAWN
 -1000
 
 TEXTBOX
-111
-153
-261
-171
+115
+186
+265
+204
 Humans
 11
 0.0
 1
 
 TEXTBOX
-310
-146
-460
-164
+312
+188
+462
+206
 Zombies\n
 11
 0.0
 1
 
 SWITCH
-276
-241
-389
-274
+278
+283
+391
+316
 RUN_AWAY
 RUN_AWAY
 1
 1
 -1000
+
+SWITCH
+115
+138
+226
+171
+EPISODIC
+EPISODIC
+1
+1
+-1000
+
+TEXTBOX
+183
+79
+333
+97
+Environment variables
+11
+0.0
+1
+
+SWITCH
+230
+138
+351
+171
+OBSTACLES
+OBSTACLES
+1
+1
+-1000
+
+MONITOR
+609
+21
+703
+66
+Nº of episodes
+episodes-count
+17
+1
+11
 
 @#$#@#$#@
 ## ABSTRACT TYPES
