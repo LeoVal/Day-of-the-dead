@@ -633,33 +633,6 @@ to collided
   [ set plan build-plan-for-intention intention ]
 end
 
-to update-status [ vision ]
-  let x ""
-  let y ""
-  let patch-content ""
-  let position-list ""
-
-  foreach sort vision
-  [
-    if ([pxcor] of ?1 = MAP_WIDTH or [pycor] of ?1 = MAP_WIDTH)
-    [ ask ?1 [set vision other vision] ]
-  ]
-
-  foreach sort vision
-  [
-    write-map list [pxcor] of ?1 [pycor] of ?1 [kind] of ?1
-  ]
-
-  if (any? turtles-on vision)
-    [
-      foreach (sort humans-on vision)
-      [ write-map build-position [xcor] of ?1 [ycor] of ?1 OCCUPIED ]
-
-      foreach (sort zombies-on vision)
-      [ write-map build-position [xcor] of ?1 [ycor] of ?1 ZOMBIE_SQUARE ]
-    ]
-end
-
 ;;;
 ;;;  =================================================================
 ;;;
@@ -687,7 +660,6 @@ end
 ;;;
 
 ;;; Human actuators
-
 
 ; faces a random direction or moves ahead
 to human-move-randomly
@@ -803,6 +775,33 @@ to-report find-zombie-position
   report build-position fzpi fzpj
 end
 
+;;; Writes what the human sees in the internal map
+to update-status [ vision ]
+  let x ""
+  let y ""
+  let patch-content ""
+  let position-list ""
+
+  foreach sort vision
+  [
+    if ([pxcor] of ?1 = MAP_WIDTH or [pycor] of ?1 = MAP_WIDTH)
+    [ ask ?1 [set vision other vision] ]
+  ]
+
+  foreach sort vision
+  [
+    write-map list [pxcor] of ?1 [pycor] of ?1 [kind] of ?1
+  ]
+
+  if (any? turtles-on vision)
+    [
+      foreach (sort humans-on vision)
+      [ write-map build-position [xcor] of ?1 [ycor] of ?1 OCCUPIED ]
+
+      foreach (sort zombies-on vision)
+      [ write-map build-position [xcor] of ?1 [ycor] of ?1 ZOMBIE_SQUARE ]
+    ]
+end
 
 ;;; Reports true if there is a zombie ahead
 to-report zombies-ahead?
