@@ -20,7 +20,8 @@ globals [
 
   KILLS
   EPISODES
-  ORIGINAL_POSITIONS
+  H_ORIGINAL_POSITIONS
+  Z_ORIGINAL_POSITIONS
 ]
 
 ;;;
@@ -37,7 +38,8 @@ to set-globals
   ;;; Global variables
   set KILLS 0
   set Human-Strategy "BDI"
-  set ORIGINAL_POSITIONS []
+  set H_ORIGINAL_POSITIONS []
+  set Z_ORIGINAL_POSITIONS []
 end
 
 ;;;
@@ -120,12 +122,16 @@ to setup-turtles
       set current-position build-position xcor ycor
       set heading 90
       set size 1
-      set ORIGINAL_POSITIONS lput build-position [xcor] of human i [ycor] of human i ORIGINAL_POSITIONS
+      set H_ORIGINAL_POSITIONS lput build-position [xcor] of human i [ycor] of human i H_ORIGINAL_POSITIONS
       ]
     set i i + 1
   ]
 
   spawn-zombies ZOMBIE_INITIAL_COUNT
+  ask zombies [
+    set Z_ORIGINAL_POSITIONS lput build-position xcor ycor Z_ORIGINAL_POSITIONS
+  ]
+
 end
 
 to setup-patches
@@ -250,7 +256,7 @@ to go
       [
          ; reset the humans coord
          let gi 0
-         foreach ORIGINAL_POSITIONS
+         foreach H_ORIGINAL_POSITIONS
          [
            ask human gi [
              set current-position ?1
@@ -265,8 +271,23 @@ to go
            ]
            set gi gi + 1
          ]
+
          ; spawn zombies again
          spawn-zombies ZOMBIE_INITIAL_COUNT
+
+         set gi 0
+         let zombie-list zombies
+         let zombie-position-list Z_ORIGINAL_POSITIONS
+
+         while [not empty? zombie-position-list ]
+         [
+           ask one-of zombie-list [
+             set xcor item 0 first zombie-position-list
+             set ycor item 1 first zombie-position-list
+             set zombie-list other zombie-list
+           ]
+           set zombie-position-list butfirst zombie-position-list
+         ]
       ]
     ]
 
@@ -291,6 +312,8 @@ to spawn-zombies [ number ]
     [
       ;; set the zombie
       init-zombie
+      set xcor random MAP_WIDTH
+      set ycor random MAP_WIDTH
     ]
     set number number - 1
   ]
@@ -645,12 +668,11 @@ to init-zombie
   set size 1
   set color black
   set heading 0
-  set xcor random MAP_WIDTH
-  set ycor random MAP_WIDTH
 end
 
 to zombie-loop
-  zombie-move-randomly
+  if (Zombie-movement)
+  [ zombie-move-randomly ]
 end
 
 ;;;
@@ -697,7 +719,7 @@ to kill-zombie-ahead
       ask kzzombie [die]
       set KILLS KILLS + 1
 
-      if (RESPAWN)
+      if (Zombie-respawn)
       [
         hatch-zombies 1 [
           init-zombie
@@ -997,13 +1019,13 @@ RANDOM_SPAWNS
 -1000
 
 SWITCH
-278
-246
-390
-279
-RESPAWN
-RESPAWN
-0
+253
+244
+426
+277
+Zombie-respawn
+Zombie-respawn
+1
 1
 -1000
 
@@ -1028,12 +1050,12 @@ Zombies\n
 1
 
 SWITCH
-278
-283
-391
-316
-RUN_AWAY
-RUN_AWAY
+253
+281
+426
+314
+Zombie-movement
+Zombie-movement
 1
 1
 -1000
@@ -1045,7 +1067,7 @@ SWITCH
 171
 EPISODIC
 EPISODIC
-1
+0
 1
 -1000
 
