@@ -39,7 +39,6 @@ to set-globals
 
   ;;; Global variables
   set KILLS 0
-  set Human-Strategy "BDI"
   set H_ORIGINAL_POSITIONS []
   set Z_ORIGINAL_POSITIONS []
 
@@ -50,11 +49,12 @@ to set-globals
 
   ; defines list of actions as (x y) move increments
   set ACTION-LIST (list
-    ;list 0 0    ; no-move
+    list 0 0    ; no-move
     list 0 1    ; N north
     list 0 -1   ; S south
     list 1 0    ; E east
     list -1 0   ; W west
+    "kill"
     ;list 1 1    ; NE northeast
     ;list 1 -1   ; SE southeast
     ;list -1 1   ; NW northwest
@@ -62,7 +62,7 @@ to set-globals
     )
 
   ; defines the number of available actions from above
-  set NUM-ACTIONS 4 ;5
+  set NUM-ACTIONS 6
 end
 
 ;;;
@@ -266,7 +266,7 @@ to go
   ]
 
   ;learning
-  set total-time-steps (total-time-steps + 1)
+  set time-steps (time-steps + 1)
 
   ;; Check if the goal was achieved, is everyone dead yet?
   if (not any? zombies)
@@ -293,6 +293,12 @@ to go
              set prey 0
 
              ;learning
+
+             ; plots and update variables
+             set-current-plot "Time performance"
+             set-current-plot-pen "time-steps"
+             plotxy EPISODES time-steps
+
              set time-steps 0
              set epsilon max list 0 (1 - (episode-count / max-episodes))
              set temperature max list 0.8 (epsilon * 10)
@@ -316,6 +322,7 @@ to go
            ]
            set zombie-position-list butfirst zombie-position-list
          ]
+
       ]
     ]
 
@@ -901,10 +908,10 @@ end
 GRAPHICS-WINDOW
 441
 69
-751
-400
-7
-7
+686
+320
+5
+5
 20.0
 1
 10
@@ -915,10 +922,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--7
-7
--7
-7
+-5
+5
+-5
+5
 1
 1
 1
@@ -926,10 +933,10 @@ ticks
 30.0
 
 BUTTON
-124
-26
-189
-59
+443
+28
+508
+61
 NIL
 Reset
 NIL
@@ -943,10 +950,10 @@ NIL
 1
 
 BUTTON
-194
-26
-263
-59
+515
+28
+584
+61
 Run
 go
 T
@@ -960,10 +967,10 @@ NIL
 1
 
 BUTTON
-268
-26
-336
-59
+589
+28
+657
+61
 Step
 go
 NIL
@@ -977,20 +984,20 @@ NIL
 1
 
 CHOOSER
-53
-353
-226
-398
+50
+284
+223
+329
 Human-Strategy
 Human-Strategy
 "Reactive" "BDI" "Learning"
-1
+2
 
 SLIDER
-53
-245
-225
-278
+50
+176
+222
+209
 HUMAN_INITIAL_COUNT
 HUMAN_INITIAL_COUNT
 4
@@ -1002,10 +1009,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-251
-246
-424
-279
+248
+177
+421
+210
 ZOMBIE_INITIAL_COUNT
 ZOMBIE_INITIAL_COUNT
 1
@@ -1017,10 +1024,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-57
-102
-229
-135
+54
+33
+226
+66
 TICK_LIMIT
 TICK_LIMIT
 500
@@ -1032,25 +1039,25 @@ NIL
 HORIZONTAL
 
 SLIDER
-55
-179
-227
-212
+52
+110
+224
+143
 MAP_WIDTH
 MAP_WIDTH
 5
 15
-7
+5
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-53
-281
-225
-314
+50
+212
+222
+245
 SIGHT_RANGE
 SIGHT_RANGE
 1
@@ -1062,10 +1069,10 @@ NIL
 HORIZONTAL
 
 MONITOR
-490
-13
-578
-58
+688
+20
+760
+65
 Zombies killed
 kills-count
 17
@@ -1073,10 +1080,10 @@ kills-count
 11
 
 SWITCH
-53
-317
-226
-350
+50
+248
+223
+281
 RANDOM_SPAWNS
 RANDOM_SPAWNS
 1
@@ -1084,10 +1091,10 @@ RANDOM_SPAWNS
 -1000
 
 SWITCH
-252
-285
-425
-318
+248
+214
+421
+247
 Zombie-respawn
 Zombie-respawn
 1
@@ -1095,30 +1102,30 @@ Zombie-respawn
 -1000
 
 TEXTBOX
-114
-227
-264
-245
+111
+158
+261
+176
 Humans
 11
 0.0
 1
 
 TEXTBOX
-311
-229
-461
-247
+308
+160
+458
+178
 Zombies\n
 11
 0.0
 1
 
 SWITCH
-252
-322
-425
-355
+248
+251
+421
+284
 Zombie-movement
 Zombie-movement
 1
@@ -1126,10 +1133,10 @@ Zombie-movement
 -1000
 
 SWITCH
-237
-141
-348
-174
+234
+72
+345
+105
 EPISODIC
 EPISODIC
 0
@@ -1137,31 +1144,31 @@ EPISODIC
 -1000
 
 TEXTBOX
-183
-79
-333
-97
+180
+10
+330
+28
 Environment variables
 11
 0.0
 1
 
 SWITCH
-236
-179
-357
-212
+233
+110
+354
+143
 OBSTACLES
 OBSTACLES
-1
+0
 1
 -1000
 
 MONITOR
-593
-13
-687
-58
+765
+20
+841
+65
 Nº of episodes
 episodes-count
 17
@@ -1169,10 +1176,10 @@ episodes-count
 11
 
 SLIDER
-56
-140
-228
-173
+53
+71
+225
+104
 max-episodes
 max-episodes
 0
@@ -1184,84 +1191,107 @@ NIL
 HORIZONTAL
 
 SLIDER
-784
-114
-956
-147
+56
+411
+228
+444
 reward-value
 reward-value
 1
 5
-5
+2
 0.2
 1
 NIL
 HORIZONTAL
 
 SLIDER
-785
-152
-957
-185
+56
+448
+228
+481
 hit-wall-reward
 hit-wall-reward
 -1
 0
-0
-0.01
-1
-NIL
-HORIZONTAL
-
-CHOOSER
-978
-151
-1116
-196
-Action-selection
-Action-selection
-"ε-greedy" "soft-max"
-0
-
-CHOOSER
-977
-102
-1115
-147
-Learning-algorithm
-Learning-algorithm
-"SARSA" "Q-learning"
-0
-
-SLIDER
-1135
-143
-1307
-176
-discount-factor
-discount-factor
-0
-1
-1
+-1
 0.01
 1
 NIL
 HORIZONTAL
 
 SLIDER
-1132
-104
-1304
-137
+237
+424
+409
+457
+discount-factor
+discount-factor
+0
+1
+0.99
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+237
+385
+409
+418
 learning-rate
 learning-rate
 0
 1
-50
+1
 0.1
 1
 NIL
 HORIZONTAL
+
+SLIDER
+55
+374
+227
+407
+kill-reward-value
+kill-reward-value
+0
+10
+4.1
+0.1
+1
+NIL
+HORIZONTAL
+
+TEXTBOX
+210
+351
+360
+369
+Q-learning
+11
+0.0
+1
+
+PLOT
+442
+334
+642
+484
+Time Performance
+Episode
+Actions
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"time-steps" 1.0 0 -16777216 true "" ""
 
 @#$#@#$#@
 ## ABSTRACT TYPES

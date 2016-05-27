@@ -603,10 +603,17 @@ end
 ;;;
 to-report get-reward [action]
 
-  ; does it have  a zombie nearby?
-  ifelse (any? zombies-on patches in-radius 1)
+  ; Reward killing but not if no zombies are ahead
+  if (action = "kill")
   [
-    report reward-value ]
+    ifelse (zombies-ahead?)
+    [ report kill-reward-value ]
+    [ report hit-wall-reward ]
+  ]
+
+  ; does it have  a zombie in front?
+  ifelse (zombies-ahead?)
+  [ report reward-value ]
   [
     ; did it hit a wall?
     let next-x xcor + first action
@@ -622,17 +629,23 @@ end
 ;;;
 to execute-action [action]
 
-  ; stores previous position
-  set previous-xcor xcor
-  set previous-ycor ycor
-
-  ; sets position according to action move values for x and y (if possible)
-  let next-x xcor + first action
-  let next-y ycor + last action
-
-  if legal-move? next-x next-y [
-    set xcor next-x
-    set ycor next-y
+  ifelse (action = "kill")
+  [ if (zombies-ahead?)
+    [ kill-zombie-ahead ] ]
+  [ 
+    ; stores previous position
+    set previous-xcor xcor
+    set previous-ycor ycor
+    
+    ; sets position according to action move values for x and y (if possible)
+    let next-x xcor + first action
+    let next-y ycor + last action
+    face patch-position build-position next-x next-y
+    
+    if legal-move? next-x next-y [
+      set xcor next-x
+      set ycor next-y
+    ]
   ]
 
   ; increases action count
@@ -644,6 +657,8 @@ end
 ;;;  A position is valid if it is within the world's limits and there are no blocks there.
 ;;;
 to-report legal-move? [x y]
+  if (previous-xcor = x) and (previous-ycor = y)
+  [report true]
   let prev-pos build-position previous-xcor previous-ycor
   let nearby-free-patches free-adjacent-positions prev-pos
 
@@ -666,101 +681,7 @@ end
 ;;;  Chooses an action for a given state according to the current action selection strategy ("e-greedy" or "soft-max").
 ;;;
 to-report select-action [x y]
-  ifelse action-selection = "ε-greedy" [
-    report select-action-e-greedy x y] [
-    report select-action-soft-max x y]
-end
-
-;;;
-;;;  Updates the Q-value for a given action according to the selected learning algorithm ("SARSA" or "Q-learning").
-;;;
-to update-Q-value [action]
-  ifelse learning-algorithm = "SARSA"
-  [ update-SARSA action ]
-  [ update-Q-learning action ]
-end
-
-
-;;;
-;;;  LAB EXERCISES: Read the class document carefully and complete the functions below.
-;;;
-
-
-;;;
-;;;  Updates the Q-value for a given action according to SARSA algorithm update rule.
-;;;  Tips:
-;;;    - use "get-Q-value" and "set-Q-value" to update the action-value function
-;;;    - properties "previous-xcor" and "previous-ycor" give access to the previous state
-;;;
-to update-SARSA [action]
-
-  ; get previous Q-value
-  let previous-Q-value (get-Q-value previous-xcor previous-ycor action)
-
-  ; gets r + (lambda * Q(s',a')) - Q(s,a)
-  let next-action select-action xcor ycor
-  let prediction-error (reward + (discount-factor * get-Q-value xcor ycor next-action) - previous-Q-value)
-
-  ; gets Q(s,a) + (alpha * (r + (lambda * Q(s',a')) - Q(s,a))
-  let new-Q-value (previous-Q-value + (learning-rate * prediction-error))
-
-  ; sets new Q-value
-  set-Q-value previous-xcor previous-ycor action new-Q-value
-
-end
-
-
-;;;
-;;;  Updates the Q-value for a given action according to the Q-learning algorithm update rule.
-;;;  Tips:
-;;;    - use "get-Q-value" and "set-Q-value" to update the action-value function
-;;;    - properties "previous-xcor" and "previous-ycor" give access to the previous state
-;;;
-to update-Q-learning [action]
-
-  ; get previous Q-value
-  let previous-Q-value (get-Q-value previous-xcor previous-ycor action)
-
-  ; gets r + (lambda * max_a' Q(s',a')) - Q(s,a)
-  let prediction-error (reward + (discount-factor * get-max-Q-value xcor ycor) - previous-Q-value)
-
-  ; gets Q(s,a) + (alpha * (r + (lambda * max_a' Q(s',a') - Q(s,a)))
-  let new-Q-value (previous-Q-value + (learning-rate * prediction-error))
-
-  ; sets new Q-value
-  set-Q-value previous-xcor previous-ycor action new-Q-value
-end
-
-
-;;;
-;;;  Chooses an action according to the ε-greedy method.
-;;;  Tips:
-;;;    - use "array:to-list" to convert an array to a list
-;;;
-to-report select-action-e-greedy [x y]
-
-  ; checks dice against epsilon
-  let dice random-float 1
-  ifelse epsilon > dice [
-    ; return random action
-    report item (random NUM-ACTIONS) ACTION-LIST
-  ]
-  [
-    ; return max action
-    let action-values array:to-list (get-Q-values x y)
-    report item (position (max action-values) action-values) ACTION-LIST
-  ]
-end
-
-
-;;;
-;;;  Chooses an action according to the soft-max method.
-;;;  Tips:
-;;;    - use "array:to-list" to convert an array to a list
-;;;    - use "map" to create a list based on values of another list
-;;;
-to-report select-action-soft-max [x y]
-
+  
   ; gets action probs
   let action-values array:to-list (get-Q-values x y)
   let action-probs map [ (exp (? / temperature))  ] action-values
@@ -778,4 +699,23 @@ to-report select-action-soft-max [x y]
   ]
 
   report item action-index ACTION-LIST
+end
+
+;;;
+;;;  Updates the Q-value for a given action according to "Q-learning" algorithm.
+;;;
+to update-Q-value [action]
+ 
+  ; get previous Q-value
+  let previous-Q-value (get-Q-value previous-xcor previous-ycor action)
+
+  ; gets r + (lambda * max_a' Q(s',a')) - Q(s,a)
+  let prediction-error (reward + (discount-factor * get-max-Q-value xcor ycor) - previous-Q-value)
+
+  ; gets Q(s,a) + (alpha * (r + (lambda * max_a' Q(s',a') - Q(s,a)))
+  let new-Q-value (previous-Q-value + (learning-rate * prediction-error))
+
+  ; sets new Q-value
+  set-Q-value previous-xcor previous-ycor action new-Q-value
+
 end
