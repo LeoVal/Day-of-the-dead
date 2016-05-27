@@ -433,17 +433,17 @@ to human-loop
   send-message-to-others list "update" vision
 
   if (Human-Strategy = "Reactive")
-  [ human-reactive ]
-  if (Human-Strategy = "BDI")
-  [ human-BDI ]
-  if (Human-Strategy = "Reactive + BDI")
-  [
-    ifelse (who mod 2 = 0)
     [ human-reactive ]
+  if (Human-Strategy = "BDI")
     [ human-BDI ]
+  if (Human-Strategy = "Learning")
+    [ human-learning ]
+  if (Human-Strategy = "Reactive + BDI")
+    [
+      ifelse (who mod 2 = 0)
+      [ human-reactive ]
+      [ human-BDI ]
     ]
-    if (Human-Strategy = "Learning")
-  [ human-learning ]
 
 end
 
