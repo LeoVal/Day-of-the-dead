@@ -328,7 +328,7 @@ to go
 
 
   ifelse (EPISODIC)
-  [ if episode-count >= max-episodes
+  [ if EPISODES >= max-episodes
     [ stop ] ]
   [ if ticks >= TICK_LIMIT
     [ stop ] ]
