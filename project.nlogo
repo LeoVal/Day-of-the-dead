@@ -436,7 +436,13 @@ to human-loop
   [ human-reactive ]
   if (Human-Strategy = "BDI")
   [ human-BDI ]
-  if (Human-Strategy = "Learning")
+  if (Human-Strategy = "Reactive + BDI")
+  [
+    ifelse (who mod 2 = 0)
+    [ human-reactive ]
+    [ human-BDI ]
+    ]
+    if (Human-Strategy = "Learning")
   [ human-learning ]
 
 end
@@ -990,7 +996,7 @@ CHOOSER
 329
 Human-Strategy
 Human-Strategy
-"Reactive" "BDI" "Learning"
+"Reactive" "BDI" "Reactive + BDI" "Learning"
 2
 
 SLIDER
@@ -1128,7 +1134,7 @@ SWITCH
 284
 Zombie-movement
 Zombie-movement
-1
+0
 1
 -1000
 
