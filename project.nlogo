@@ -22,6 +22,8 @@ globals [
   EPISODES
   H_ORIGINAL_POSITIONS
   Z_ORIGINAL_POSITIONS
+
+  NUM-ACTIONS ACTION-LIST epsilon temperature episode-count time-steps total-time-steps
 ]
 
 ;;;
@@ -40,6 +42,27 @@ to set-globals
   set Human-Strategy "BDI"
   set H_ORIGINAL_POSITIONS []
   set Z_ORIGINAL_POSITIONS []
+
+
+  ;Learning algorithm
+  set epsilon 1
+  set temperature 100
+
+  ; defines list of actions as (x y) move increments
+  set ACTION-LIST (list
+    ;list 0 0    ; no-move
+    list 0 1    ; N north
+    list 0 -1   ; S south
+    list 1 0    ; E east
+    list -1 0   ; W west
+    ;list 1 1    ; NE northeast
+    ;list 1 -1   ; SE southeast
+    ;list -1 1   ; NW northwest
+    ;list -1 -1  ; SW southwest
+    )
+
+  ; defines the number of available actions from above
+  set NUM-ACTIONS 4 ;5
 end
 
 ;;;
@@ -67,6 +90,9 @@ humans-own [
   intention
   plan
   last-action
+
+  Q-values reward total-reward previous-xcor previous-ycor
+
 ]
 
 zombies-own[
@@ -123,6 +149,14 @@ to setup-turtles
       set heading 90
       set size 1
       set H_ORIGINAL_POSITIONS lput build-position [xcor] of human i [ycor] of human i H_ORIGINAL_POSITIONS
+
+      ;learning
+      set Q-values get-initial-Q-values
+      set reward 0
+      set total-reward 0
+      set previous-xcor xcor
+      set previous-ycor ycor
+
       ]
     set i i + 1
   ]
@@ -140,10 +174,12 @@ to setup-patches
   let j 0
 
   ;; Build the floor
+
   ask patches [
-    set kind GROUND
     set pcolor green + 8
+    set kind GROUND
   ]
+  ask patches with [ (pxcor + pycor) mod 2 = 0 ][ set pcolor green + 7.9 ]
 
   set i MAP_WIDTH
   while [i >= 0]
@@ -214,25 +250,6 @@ to build-vertical-wall [ ii ]
 end
 
 ;;;
-;;;  Count the number of humans
-;;;
-to-report head-count
-  report count humans
-end
-
-to-report zombie-count
-  report count zombies
-end
-
-to-report kills-count
-  report KILLS
-end
-
-to-report episodes-count
-  report EPISODES
-end
-
-;;;
 ;;;  Step up the simulation
 ;;;
 to go
@@ -248,12 +265,18 @@ to go
       human-loop
   ]
 
+  ;learning
+  set total-time-steps (total-time-steps + 1)
+
   ;; Check if the goal was achieved, is everyone dead yet?
   if (not any? zombies)
     [
       ifelse (not EPISODIC)
       [ stop ]
       [
+        ; next episode
+        set EPISODES EPISODES + 1
+
          ; reset the humans coord
          let gi 0
          foreach H_ORIGINAL_POSITIONS
@@ -268,6 +291,11 @@ to go
              set plan []
              set last-action ""
              set prey 0
+
+             ;learning
+             set time-steps 0
+             set epsilon max list 0 (1 - (episode-count / max-episodes))
+             set temperature max list 0.8 (epsilon * 10)
            ]
            set gi gi + 1
          ]
@@ -291,9 +319,34 @@ to go
       ]
     ]
 
-  if ticks >= TICK_LIMIT
-    [ stop ]
+
+  ifelse (EPISODIC)
+  [ if episode-count >= max-episodes
+    [ stop ] ]
+  [ if ticks >= TICK_LIMIT
+    [ stop ] ]
 end
+
+;;;  =================================================================
+;;;      Interface reports
+;;;  =================================================================
+
+to-report head-count
+  report count humans
+end
+
+to-report zombie-count
+  report count zombies
+end
+
+to-report kills-count
+  report KILLS
+end
+
+to-report episodes-count
+  report EPISODES
+end
+
 
 ;;;
 ;;;  =================================================================
@@ -470,7 +523,19 @@ end
 ;;;
 
 to human-learning
-  ;TODO human learning algorithm here
+
+    ; chooses action
+  let action select-action xcor ycor
+
+  ; updates environmet
+  execute-action action
+
+  ; gets reward
+  set reward get-reward action
+  set total-reward (total-reward + reward)
+
+  ; updates Q-value function
+  update-Q-value action
 end
 
 ;;;
@@ -912,20 +977,20 @@ NIL
 1
 
 CHOOSER
-54
-312
-227
-357
+53
+353
+226
+398
 Human-Strategy
 Human-Strategy
 "Reactive" "BDI" "Learning"
 1
 
 SLIDER
-54
-204
-226
-237
+53
+245
+225
+278
 HUMAN_INITIAL_COUNT
 HUMAN_INITIAL_COUNT
 4
@@ -937,10 +1002,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-252
-205
-425
-238
+251
+246
+424
+279
 ZOMBIE_INITIAL_COUNT
 ZOMBIE_INITIAL_COUNT
 1
@@ -952,25 +1017,25 @@ NIL
 HORIZONTAL
 
 SLIDER
-55
-101
-227
-134
+57
+102
+229
+135
 TICK_LIMIT
 TICK_LIMIT
 500
 2000
-1035
+2000
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-231
-101
-403
-134
+55
+179
+227
+212
 MAP_WIDTH
 MAP_WIDTH
 5
@@ -982,10 +1047,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-54
-240
-226
-273
+53
+281
+225
+314
 SIGHT_RANGE
 SIGHT_RANGE
 1
@@ -997,10 +1062,10 @@ NIL
 HORIZONTAL
 
 MONITOR
-506
-21
-594
-66
+490
+13
+578
+58
 Zombies killed
 kills-count
 17
@@ -1008,10 +1073,10 @@ kills-count
 11
 
 SWITCH
-54
-276
-227
-309
+53
+317
+226
+350
 RANDOM_SPAWNS
 RANDOM_SPAWNS
 1
@@ -1019,10 +1084,10 @@ RANDOM_SPAWNS
 -1000
 
 SWITCH
-253
-244
-426
-277
+252
+285
+425
+318
 Zombie-respawn
 Zombie-respawn
 1
@@ -1030,30 +1095,30 @@ Zombie-respawn
 -1000
 
 TEXTBOX
-115
-186
-265
-204
+114
+227
+264
+245
 Humans
 11
 0.0
 1
 
 TEXTBOX
-312
-188
-462
-206
+311
+229
+461
+247
 Zombies\n
 11
 0.0
 1
 
 SWITCH
-253
-281
-426
-314
+252
+322
+425
+355
 Zombie-movement
 Zombie-movement
 1
@@ -1061,10 +1126,10 @@ Zombie-movement
 -1000
 
 SWITCH
-115
-138
-226
-171
+237
+141
+348
+174
 EPISODIC
 EPISODIC
 0
@@ -1082,10 +1147,10 @@ Environment variables
 1
 
 SWITCH
-230
-138
-351
-171
+236
+179
+357
+212
 OBSTACLES
 OBSTACLES
 1
@@ -1093,15 +1158,110 @@ OBSTACLES
 -1000
 
 MONITOR
-609
-21
-703
-66
+593
+13
+687
+58
 Nº of episodes
 episodes-count
 17
 1
 11
+
+SLIDER
+56
+140
+228
+173
+max-episodes
+max-episodes
+0
+1000
+497
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+784
+114
+956
+147
+reward-value
+reward-value
+1
+5
+5
+0.2
+1
+NIL
+HORIZONTAL
+
+SLIDER
+785
+152
+957
+185
+hit-wall-reward
+hit-wall-reward
+-1
+0
+0
+0.01
+1
+NIL
+HORIZONTAL
+
+CHOOSER
+978
+151
+1116
+196
+Action-selection
+Action-selection
+"ε-greedy" "soft-max"
+0
+
+CHOOSER
+977
+102
+1115
+147
+Learning-algorithm
+Learning-algorithm
+"SARSA" "Q-learning"
+0
+
+SLIDER
+1135
+143
+1307
+176
+discount-factor
+discount-factor
+0
+1
+1
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+1132
+104
+1304
+137
+learning-rate
+learning-rate
+0
+1
+50
+0.1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## ABSTRACT TYPES

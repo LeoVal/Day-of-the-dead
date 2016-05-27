@@ -1,3 +1,7 @@
+;;;
+;;;  Use the "array" extension for easy and efficient Q-value storage
+;;;
+extensions [array]
 
 ;;;
 ;;;  Return a list of positions from initialPos to FinalPos
@@ -541,4 +545,237 @@ to-report impossible-intention? [iintention]
   ]
   
   report false
+end
+
+
+
+;;; Q-Learning lab
+;;;  =================================================================
+;;;      Utils
+;;;  =================================================================
+
+to-report get-action-index [ action ]
+  report position action ACTION-LIST
+end
+
+;;;
+;;;  Creates the initial Q-value function structure: (x y action) <- 0.
+;;;
+to-report get-initial-Q-values
+  report array:from-list n-values world-width [
+    array:from-list n-values world-height [
+      array:from-list n-values NUM-ACTIONS [0]]]
+end
+
+;;;
+;;;  Gets the Q-values for a specific state (x y).
+;;;
+to-report get-Q-values [x y]
+  set x x + MAP_WIDTH
+  set y y + MAP_WIDTH
+  report array:item (array:item Q-values x) y
+end
+
+;;;
+;;;  Gets the Q-value for a specific state-action pair (x y action).
+;;;
+to-report get-Q-value [x y action]
+  let action-values get-Q-values x y
+  report array:item action-values (get-action-index action)
+end
+
+;;;
+;;;  Sets the Q-value for a specific state-action pair (x y action).
+;;;
+to set-Q-value [x y action value]
+  array:set (get-Q-values x y) (get-action-index action) value
+end
+
+;;;
+;;;  Gets the maximum Q-value for a specific state (x y).
+;;;
+to-report get-max-Q-value [x y]
+    report max array:to-list get-Q-values x y
+end
+
+;;;
+;;;  Gets the reward related with the current state and a given action (x y action).
+;;;
+to-report get-reward [action]
+
+  ; does it have  a zombie nearby?
+  ifelse (any? zombies-on patches in-radius 1)
+  [
+    report reward-value ]
+  [
+    ; did it hit a wall?
+    let next-x xcor + first action
+    let next-y ycor + last action
+    ifelse (not legal-move? next-x next-y)
+      [ report hit-wall-reward ]
+      [ report 0 ]
+    ]
+end
+
+;;;
+;;;  Executes a given action by changing the agent's position accordingly.
+;;;
+to execute-action [action]
+
+  ; stores previous position
+  set previous-xcor xcor
+  set previous-ycor ycor
+
+  ; sets position according to action move values for x and y (if possible)
+  let next-x xcor + first action
+  let next-y ycor + last action
+
+  if legal-move? next-x next-y [
+    set xcor next-x
+    set ycor next-y
+  ]
+
+  ; increases action count
+  set time-steps (time-steps + 1)
+end
+
+;;;
+;;;  Checks whether a given position (x y) is valid for an agent to move.
+;;;  A position is valid if it is within the world's limits and there are no blocks there.
+;;;
+to-report legal-move? [x y]
+  let prev-pos build-position previous-xcor previous-ycor
+  let nearby-free-patches free-adjacent-positions prev-pos
+
+  report ( member? build-position x y nearby-free-patches )
+end
+
+;;;
+;;;  Checks whether a episode/trial has finished.
+;;;  An episode finishes when all agents/taxis have picked up a different passenger.
+;;;
+to-report episode-finished?
+  report not any? zombies
+end
+
+;;;  =================================================================
+;;;      Learning
+;;;  =================================================================
+
+;;;
+;;;  Chooses an action for a given state according to the current action selection strategy ("e-greedy" or "soft-max").
+;;;
+to-report select-action [x y]
+  ifelse action-selection = "ε-greedy" [
+    report select-action-e-greedy x y] [
+    report select-action-soft-max x y]
+end
+
+;;;
+;;;  Updates the Q-value for a given action according to the selected learning algorithm ("SARSA" or "Q-learning").
+;;;
+to update-Q-value [action]
+  ifelse learning-algorithm = "SARSA"
+  [ update-SARSA action ]
+  [ update-Q-learning action ]
+end
+
+
+;;;
+;;;  LAB EXERCISES: Read the class document carefully and complete the functions below.
+;;;
+
+
+;;;
+;;;  Updates the Q-value for a given action according to SARSA algorithm update rule.
+;;;  Tips:
+;;;    - use "get-Q-value" and "set-Q-value" to update the action-value function
+;;;    - properties "previous-xcor" and "previous-ycor" give access to the previous state
+;;;
+to update-SARSA [action]
+
+  ; get previous Q-value
+  let previous-Q-value (get-Q-value previous-xcor previous-ycor action)
+
+  ; gets r + (lambda * Q(s',a')) - Q(s,a)
+  let next-action select-action xcor ycor
+  let prediction-error (reward + (discount-factor * get-Q-value xcor ycor next-action) - previous-Q-value)
+
+  ; gets Q(s,a) + (alpha * (r + (lambda * Q(s',a')) - Q(s,a))
+  let new-Q-value (previous-Q-value + (learning-rate * prediction-error))
+
+  ; sets new Q-value
+  set-Q-value previous-xcor previous-ycor action new-Q-value
+
+end
+
+
+;;;
+;;;  Updates the Q-value for a given action according to the Q-learning algorithm update rule.
+;;;  Tips:
+;;;    - use "get-Q-value" and "set-Q-value" to update the action-value function
+;;;    - properties "previous-xcor" and "previous-ycor" give access to the previous state
+;;;
+to update-Q-learning [action]
+
+  ; get previous Q-value
+  let previous-Q-value (get-Q-value previous-xcor previous-ycor action)
+
+  ; gets r + (lambda * max_a' Q(s',a')) - Q(s,a)
+  let prediction-error (reward + (discount-factor * get-max-Q-value xcor ycor) - previous-Q-value)
+
+  ; gets Q(s,a) + (alpha * (r + (lambda * max_a' Q(s',a') - Q(s,a)))
+  let new-Q-value (previous-Q-value + (learning-rate * prediction-error))
+
+  ; sets new Q-value
+  set-Q-value previous-xcor previous-ycor action new-Q-value
+end
+
+
+;;;
+;;;  Chooses an action according to the ε-greedy method.
+;;;  Tips:
+;;;    - use "array:to-list" to convert an array to a list
+;;;
+to-report select-action-e-greedy [x y]
+
+  ; checks dice against epsilon
+  let dice random-float 1
+  ifelse epsilon > dice [
+    ; return random action
+    report item (random NUM-ACTIONS) ACTION-LIST
+  ]
+  [
+    ; return max action
+    let action-values array:to-list (get-Q-values x y)
+    report item (position (max action-values) action-values) ACTION-LIST
+  ]
+end
+
+
+;;;
+;;;  Chooses an action according to the soft-max method.
+;;;  Tips:
+;;;    - use "array:to-list" to convert an array to a list
+;;;    - use "map" to create a list based on values of another list
+;;;
+to-report select-action-soft-max [x y]
+
+  ; gets action probs
+  let action-values array:to-list (get-Q-values x y)
+  let action-probs map [ (exp (? / temperature))  ] action-values
+  let sum-q sum action-probs
+  set action-probs map [ ? / sum-q ] action-probs
+
+  ; selects action based on dice
+  let dice random-float 1
+  let prob-sum item 0 action-probs
+  let action-index 0
+  while [prob-sum < dice]
+  [
+    set action-index (action-index + 1)
+    set prob-sum (prob-sum + (item action-index action-probs))
+  ]
+
+  report item action-index ACTION-LIST
 end
